@@ -1,23 +1,30 @@
-PyAuthenNTLM2 is a module that enables Apache to carry out authentication by means of the NTLM protocol and an external Domain Controller.
+PyAuthenNTLM2 is a module that enables Apache to carry out authentication by
+means of the NTLM protocol and a separate Domain Controller.
 
 Introduction
 ============
 
 The specific use case of PyAuthenNTLM2 is the following:
 
- * Users have valid accounts in an existing Windows domain, and you want such credentials to be used for HTTP authentication.
+ * Users have valid accounts in an existing Windows domain, and you want such
+   credentials to be used for HTTP authentication.
  * Apache runs on a server that is not part of the Windows domain.
- * Some of the users cannot use Kerberos. For instance, they connect via a proxy or they use machines that are not part of the domain.
+ * Some of the users cannot use Kerberos. For instance, they connect via a proxy
+   or they use machines that are not part of the domain.
 
-Although *Kerberos* authentication (including its Microsoft variant "Integrated Windows Authentication") is the best option
-in terms of security, the venerable *NTLM* protocol is still a good compromise, much better than the widespread *Basic*
-protocol and marginally better than *Digest*.
-With *Basic*, anybody can pick up your password from the messages sent to the server (unless you use TLS), whereas with *Digest*
-the web server needs local access to the actual password. With *NTLM*, the webserver can relay every authorization requests to the
-Domain Controller: it never has to neither see nor store the real passwords.
+Although Kerberos (including its Microsoft variant "Integrated Windows
+Authentication") is the best option in terms of security for HTTP
+authentication, the venerable NTLM protocol is still a good compromise, much
+better than the widespread Basic protocol and marginally better than Digest.
+With Basic, anybody can pick up your password from the messages sent to the
+server (unless you use TLS), whereas with Digest the web server needs local
+access to the actual password. With NTLM, the webserver can relay every
+authorization requests to the Domain Controller: it never has to neither see
+nor store the real passwords.
 
-Note that NTLMv1 is based on cryptography that by today standards is very weak. Ensure that your clients always
-use NTLMv2. PyAuthenNTLM2 handles equally well all the various NTLM variants (such as NTLMv2 Session, and NTLMv2).
+Note that NTLMv1 is based on cryptography that by today standards is very weak.
+Ensure that your clients always use NTLMv2. PyAuthenNTLM2 handles equally well
+all the various NTLM variants (such as NTLMv2 Session, and NTLMv2).
 
 Requirements
 ============
@@ -26,7 +33,9 @@ Requirements
 * Python 2.x
 * Apache 2.x
 
-Test was carried out on mod-python 3.3.1, Apache 2.2, and Python 2.6.
+Test was carried out with:
+ - a server with mod-python 3.3.1, Apache 2.2, and Python 2.6. 
+ - clients with Internet Explorer 7/8, Firefox 7.0, and Chrome.
 
 Installation
 ============
@@ -41,31 +50,32 @@ Usage is best shown by an example of Apache configuration:
     AuthType NTLM
     AuthName WDOMAIN
     require valid-user
-    PythonAuthenHandler /usr/local/lib/python2.6/dist-packages/ntlm_proxy.py
+    PythonAuthenHandler /usr/local/lib/python2.6/dist-packages/pyntlm.py
     PythonOption Domain WDOMAIN
     PythonOption PDC 192.1.2.45
-	PythonOption BDC 192.1.2.46
+    PythonOption BDC 192.1.2.46
 </Directory>
 
-All users trying to access a URI mapped under the directory /var/lib/some_directory
-will be asked for credentials valid in the Windows Domain WDOMAIN. The user name
-to enter need to be in the format: wdomain\useridentifier (for instance windom\jbrown).
+All users trying to access a URI mapped under the directory
+/var/lib/some_directory will be asked for credentials valid in the Windows
+Domain WDOMAIN. The user name to enter need to be in the format:
+wdomain\useridentifier (for instance windom\jbrown).
 
 The following options exist:
 
-* AuthType NTLM						Always specify it like this.
-* require valid-user				Always specify it like this.
-* AuthName [domain]					Replace [domain] with the domain name to present to
-									users in the pop-up dialog.
-* PythonAuthenHandler [pyntlm.py]	Replace [pyntlm.py] with the complete, absolute path
-									to the pyntlm.py script.
-* PythonOption Domain [domain]		Replace [domain] with the Windows domain name
-									(uppercase).
-* PythonOption PDC [pdc]			Replace [pdc] with the address of the Primary Domain
-									Controller (either IP or DNS name).
-* PythonOption BDC [bdc]			Replace [bdc] with the address of the Backup Domain
-									Controller (either IP or DNS name). This entry is
-									optional.
+* AuthType NTLM                     Always specify it like this.
+* require valid-user                Always specify it like this.
+* AuthName [domain]                 Replace [domain] with the domain name to
+                                    present to users in the pop-up dialog.
+* PythonAuthenHandler [pyntlm.py]   Replace [pyntlm.py] with the complete,
+                                    absolute path to the pyntlm.py script.
+* PythonOption Domain [domain]      Replace [domain] with the Windows domain
+                                    name (uppercase).
+* PythonOption PDC [pdc]            Replace [pdc] with the address of the
+                                    Primary Domain Controller (either IP or DNS
+                                    name).
+* PythonOption BDC [bdc]            Replace [bdc] with the address of the Backup                                    Domain Controller (either IP or DNS name).
+                                    This entry is optional.
 
 Logging
 =======
@@ -75,14 +85,17 @@ All logs will show up in the Apache log file.
 Thanks
 ======
 
-Microsoft for the large amount of technical specifications about NTLM and SMB it disclosed [1].
-Eric Glass for his long article about NTLM [2]. In several ways, it is more complete and precise than [1].
-Gerald Ritcher and Shannon Eric Peevey for AuthenNTLM [3], which inspired this module.
+Microsoft for the large amount of technical specifications about NTLM and SMB
+it disclosed [1].
+Eric Glass for his long article about NTLM [2]. In several ways, it is more
+complete and precise than [1].  Gerald Ritcher and Shannon
+Eric Peevey for AuthenNTLM [3], which inspired this module.
 
 Contacts
 ========
 
-...
+Send an email to Legrandin <gooksankoo@hoiptorrow.mailexpire.com> or drop a
+message at https://github.com/Legrandin/PyAuthenNTLM2.
 
 References
 ==========
