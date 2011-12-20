@@ -74,8 +74,11 @@ The following options exist:
 * PythonOption PDC [pdc]            Replace [pdc] with the address of the
                                     Primary Domain Controller (either IP or DNS
                                     name).
-* PythonOption BDC [bdc]            Replace [bdc] with the address of the Backup                                    Domain Controller (either IP or DNS name).
+* PythonOption BDC [bdc]            Replace [bdc] with the address of the Backup
+                                    Domain Controller (either IP or DNS name).
                                     This entry is optional.
+
+Apache needs to be configured to send keep alives (directive 'KeepAlive On').
 
 Logging
 =======
@@ -88,8 +91,9 @@ Thanks
 Microsoft for the large amount of technical specifications about NTLM and SMB
 it disclosed [1].
 Eric Glass for his long article about NTLM [2]. In several ways, it is more
-complete and precise than [1].  Gerald Ritcher and Shannon
-Eric Peevey for AuthenNTLM [3], which inspired this module.
+complete and precise than [1].
+Gerald Ritcher and Shannon Eric Peevey for AuthenNTLM [3], which inspired this
+module.
 
 Contacts
 ========
