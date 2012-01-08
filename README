@@ -47,6 +47,7 @@ Usage
 Usage is best shown by an example of Apache configuration:
 
 <Directory /var/lib/some_directory>
+
     AuthType NTLM
     AuthName WDOMAIN
     require valid-user
@@ -54,12 +55,23 @@ Usage is best shown by an example of Apache configuration:
     PythonOption Domain WDOMAIN
     PythonOption PDC 192.1.2.45
     PythonOption BDC 192.1.2.46
+
+    # Bypass authentication for local clients.
+    # Comment these lines if they should authenticate too.
+    Order deny,allow
+    Deny  from all
+    Allow from 127.0.0.1
+    Satify any
+
 </Directory>
 
-All users trying to access a URI mapped under the directory
+All non-local clients trying to access a URI mapped under the directory
 /var/lib/some_directory will be asked for credentials valid in the Windows
 Domain WDOMAIN. The user name to enter need to be in the format:
 wdomain\useridentifier (for instance windom\jbrown).
+
+Local clients (that is, those connecting from 127.0.0.1) will not be presented
+with any request for authentication.
 
 The following options exist:
 
