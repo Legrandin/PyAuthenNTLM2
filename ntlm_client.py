@@ -29,6 +29,9 @@ from ntlm_proxy import SMB_Context, NTLM_Proxy
 def tuc(s):
     return s.encode('utf-16-le')
 
+class NTLM_Parse_Exception(Exception):
+    pass
+
 class NTLM_Client:
     """This class implements an NTLMv2 client"""
 
