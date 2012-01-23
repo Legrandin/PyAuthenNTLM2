@@ -86,7 +86,7 @@ class NTLM_Client:
                     else:
                         print hexlify(avvalue)
                 else:
-                    print "Unknown AV {0:x} = {1:s}".format(avid, hexlify(avvalue))
+                    print "Unknown AV 0x%X = %s" % (avid, hexlify(avvalue))
             avs = avs[4+avlen:]
 
     def createAVpairs(self, listAVs):
@@ -286,9 +286,9 @@ if not challenge:
 client.parse_ntlm_challenge(challenge)
 authenticate = client.make_ntlm_authenticate()
 if proxy.authenticate(authenticate):
-    print "User {0}\\{1} was authenticated.".format(config['user'], config['domain'])
+    print "User %s\\%s was authenticated." % (config['user'], config['domain'])
 else:
-    print "User {0}\\{1} was NOT authenticated.".format(config['user'], config['domain'])
+    print "User %s\\%s was NOT authenticated." % (config['user'], config['domain'])
 
 
 

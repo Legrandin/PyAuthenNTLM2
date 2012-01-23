@@ -99,24 +99,24 @@ def handle_type1(req, ntlm_message):
         domain = req.get_options()['Domain']
         pdc = req.get_options()['PDC']
         bdc = req.get_options().get('BDC', False)
-    except Exception as e:
-        req.log_error('PYNTLM: Incorrect configuration for pyntlm = {0}'.format(str(e)), apache.APLOG_CRIT)
+    except Exception, e:
+        req.log_error('PYNTLM: Incorrect configuration for pyntlm = %s' % str(e), apache.APLOG_CRIT)
         return apache.HTTP_INTERNAL_SERVER_ERROR
  
     try:
         proxy = NTLM_Proxy(pdc, domain)
         ntlm_challenge = proxy.negotiate(ntlm_message)
-    except Exception as e:
+    except Exception, e:
         proxy.close()
-        req.log_error('PYNTLM: Error when retrieving Type 2 message from PDC({0}) = {1}'.format(pdc,str(e)), apache.APLOG_CRIT)
+        req.log_error('PYNTLM: Error when retrieving Type 2 message from PDC(%s) = %s' % (pdc,str(e)), apache.APLOG_CRIT)
         if not bdc:
             return apache.HTTP_SERVICE_UNAVAILABLE
         try:
             proxy = NTLM_Proxy(bdc, domain)
             ntlm_challenge = proxy.negotiate(ntlm_message)
-        except Exception as e:
+        except Exception, e:
             proxy.close()
-            req.log_error('PYNTLM: Error when retrieving Type 2 message BDC({0}) = {1}'.format(bdc,str(e)), apache.APLOG_CRIT)
+            req.log_error('PYNTLM: Error when retrieving Type 2 message BDC(%s) = %s ' % (bdc,str(e)), apache.APLOG_CRIT)
             return apache.HTTP_SERVICE_UNAVAILABLE
 
     mutex.acquire()
@@ -139,22 +139,22 @@ def handle_type3(req, ntlm_message):
     try:
         user, domain = parse_ntlm_authenticate(ntlm_message)
         result = proxy.authenticate(ntlm_message)
-    except Exception as e:
-        req.log_error('PYNTLM: Error when retrieving Type 3 message from DC({0})= '.format(str(e)), apache.APLOG_CRIT)
+    except Exception, e:
+        req.log_error('PYNTLM: Error when retrieving Type 3 message from DC = %s' % str(e), apache.APLOG_CRIT)
         result = False
     mutex.acquire()
     proxy.close()
     if cache.has_key(req.connection.id):
-        req.log_error("PYNTLM: Cleaning up cache from connection 0x{0:X}".format(req.connection.id), apache.APLOG_DEBUG)
+        req.log_error("PYNTLM: Cleaning up cache from connection 0x%X" % req.connection.id, apache.APLOG_DEBUG)
         del cache[req.connection.id]
     mutex.release()
     if result:
-        req.log_error('PYNTLM: User {0}/{1} has been authenticated to access URI {2}'.format(domain,user,req.unparsed_uri), apache.APLOG_NOTICE)
+        req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (domain,user,req.unparsed_uri), apache.APLOG_NOTICE)
         req.connection.notes.add('NTLM_AUTHORIZED',user)
         req.user = user
         return apache.OK
     else:
-        req.log_error('PYNTLM: User {0}/{1} at {2} failed authentication for URI {3}'.format(
+        req.log_error('PYNTLM: User %s/%s at %s failed authentication for URI %s' % (
             domain,user,req.connection.remote_ip,req.unparsed_uri))
         req.err_headers_out.add('WWW-Authenticate', 'NTLM')
         req.err_headers_out.add('Connection', 'close')
@@ -162,7 +162,7 @@ def handle_type3(req, ntlm_message):
 
 def authenhandler(req):
     '''The request handler called by mod_python in the authentication phase.'''
-    req.log_error("PYNTLM: Handling connection 0x{0:X} from address {1} for {2} URI {3}. {4} entries in connection cache.".format(
+    req.log_error("PYNTLM: Handling connection 0x%X from address %s for %s URI %s. %d entries in connection cache." % (
         req.connection.id, req.connection.remote_ip,req.method,req.unparsed_uri,len(cache)), apache.APLOG_INFO)
   
     # Extract Authorization header, as a list (if present)
@@ -182,7 +182,7 @@ def authenhandler(req):
         # challenge-response exchange take place.
         # For other methods, it is acceptable to return OK immediately.
         if  auth_headers:
-            req.log_error('PYTNLM: Spurious authentication request on connection 0x{0:X}. Method = {1}. Content-Length = {2}. Headers = {3}'.format(
+            req.log_error('PYTNLM: Spurious authentication request on connection 0x%X. Method = %s. Content-Length = %d. Headers = %s' % (
             req.connection.id, req.method, req.clength, auth_headers), apache.APLOG_INFO)
             if req.method!='POST' or req.clength>0:
                 return apache.OK
@@ -206,7 +206,7 @@ def authenhandler(req):
         ntlm_message = False
     
     if not ntlm_message:
-        req.log_error('Error when parsing NTLM Authorization header from address {1} and URI {2}'.format(
+        req.log_error('Error when parsing NTLM Authorization header from address %s and URI %s' % (
         req.connection.remote_ip,req.unparsed_uri), apache.APLOG_ERR)
         return apache.HTTP_BAD_REQUEST
 
