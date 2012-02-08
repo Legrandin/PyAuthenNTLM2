@@ -26,6 +26,7 @@ from threading import Lock
 
 from mod_python import apache
 from ntlm_proxy import NTLM_Proxy
+import ldap,ldap.sasl
 
 #
 # A connection can be in on the following states when a request arrives:
@@ -74,8 +75,13 @@ def parse_ntlm_authenticate(msg):
 def decode_authorization(auth):
     '''Return the binary NTLM message that was contained in the HTTP Authorization header'''
     ah = auth.split(' ')
-    if len(ah)==2 and ah[0]=='NTLM':
-        return base64.b64decode(ah[1])
+    if len(ah)==2:
+        if ah[0]=='NTLM':
+            return base64.b64decode(ah[1])
+            
+        elif ah[0]=='Basic':
+            return 'basic:%s' %(base64.b64decode(ah[1]))
+
     return False
 
 def handle_type1(req, ntlm_message):
@@ -159,12 +165,43 @@ def handle_type3(req, ntlm_message):
         req.err_headers_out.add('WWW-Authenticate', 'NTLM')
         req.err_headers_out.add('Connection', 'close')
         return apache.HTTP_UNAUTHORIZED
+    
+def handle_basic(req, ntlm_message):
+    req.log_error('Handling Basic Authentication for URI %s' % (req.unparsed_uri))
+    
+    # show the password dialog, retrieve password and user
+    ah = ntlm_message.split(':')
+    server = req.get_options()['PDC']
+    domain = req.get_options()['Domain']
+    user = "%s\%s" %(domain,ah[1])
+    pw = "%s" %ah[2]
+    
+    try:
+        # open a connection to our LDAP server
+        req.log_error('Authenticating %s against %s' %(user,server))
+        l = ldap.open(server)
+        # attempt to bind to the LDAP server
+        l.simple_bind_s(user, pw)
+        dn = l.whoami_s()
+        l.unbind()
+        req.user = user
+        return apache.OK
+
+    except ldap.LDAPError,e:
+        req.log_error('Basic authentication failure: %s' %(e.message['desc'] if type(e.message) == dict and e.message.has_key('desc') else str(e)))
+        return do_challenge(req)
+    
+def do_challenge(req):
+    req.err_headers_out.add('WWW-Authenticate', 'NTLM')
+    req.err_headers_out.add('WWW-Authenticate', 'Basic realm="' + req.auth_name() + '"')
+    req.err_headers_out.add('Connection', 'close')
+    return apache.HTTP_UNAUTHORIZED        
 
 def authenhandler(req):
     '''The request handler called by mod_python in the authentication phase.'''
     req.log_error("PYNTLM: Handling connection 0x%X from address %s for %s URI %s. %d entries in connection cache." % (
         req.connection.id, req.connection.remote_ip,req.method,req.unparsed_uri,len(cache)), apache.APLOG_INFO)
-  
+
     # Extract Authorization header, as a list (if present)
     auth_headers = req.headers_in.get('Authorization', [])
     if not isinstance(auth_headers, list):
@@ -192,9 +229,7 @@ def authenhandler(req):
     # If there is no Authorization header it means it is the first request.
     # We reject it with a 401, indicating which authentication protocol we understand.
     if not auth_headers:
-        req.err_headers_out.add('WWW-Authenticate', 'NTLM')
-        req.err_headers_out.add('Connection', 'close')
-        return apache.HTTP_UNAUTHORIZED
+        return do_challenge(req)
 
     # Extract ntlm_message from any of the Authorization headers
     try:
@@ -209,6 +244,9 @@ def authenhandler(req):
         req.log_error('Error when parsing NTLM Authorization header from address %s and URI %s' % (
         req.connection.remote_ip,req.unparsed_uri), apache.APLOG_ERR)
         return apache.HTTP_BAD_REQUEST
+
+    if ntlm_message.startswith('basic:'):
+        return handle_basic(req, ntlm_message)
 
     if cache.has_key(req.connection.id):
         return handle_type3(req, ntlm_message)
