@@ -238,57 +238,56 @@ class NTLM_Client:
         msg = ''.join(msg) + payload
         return msg
 
-config = dict()
-
 def print_help():
     print
     print "Performs an NTLM authentication for user\\DOMAIN against the Domain Controller at the given address:"
     print "ntlm_client {-u|--user} usr {-p|--password} pwd {-d|--domain} DOMAIN {-a|--address} address"
     sys.exit(-1)
 
-if len(sys.argv)<2:
-    print_help()
+if __name__ == '__main__':
+    config = dict()
 
-try:
-    options, remain = getopt.getopt(sys.argv[1:],'hu:p:d:a:',['help', 'user=', 'password=', 'domain=', 'address='])
-except getopt.GetoptError as err:
-    print err.msg
-    print_help()
-if remain:
-    print "Unknown option", ''.join(remain)
-    print_help()
-
-for o, v in options: 
-    if o in ['-h', '--help']:
+    if len(sys.argv)<2:
         print_help()
-    elif o in ['-u', '--user']:
-        config['user'] = v
-    elif o in ['-p', '--password']:
-        config['password'] = v
-    elif o in ['-d', '--domain']:
-        config['domain'] = v
-    elif o in ['-a', '--address']:
-        config['address'] = v
 
-if len(config)!=4:
-    print "Too few options specified."
-    print_help()
+    try:
+        options, remain = getopt.getopt(sys.argv[1:],'hu:p:d:a:',['help', 'user=', 'password=', 'domain=', 'address='])
+    except getopt.GetoptError as err:
+        print err.msg
+        print_help()
+    if remain:
+        print "Unknown option", ''.join(remain)
+        print_help()
 
-proxy = NTLM_Proxy(config['address'], config['domain'])
-client = NTLM_Client(config['user'],config['domain'],config['password'])
+    for o, v in options: 
+        if o in ['-h', '--help']:
+            print_help()
+        elif o in ['-u', '--user']:
+            config['user'] = v
+        elif o in ['-p', '--password']:
+            config['password'] = v
+        elif o in ['-d', '--domain']:
+            config['domain'] = v
+        elif o in ['-a', '--address']:
+            config['address'] = v
 
-type1 = client.make_ntlm_negotiate()
-challenge = proxy.negotiate(type1)
-if not challenge:
-    print "Did not get the challenge!"
-    sys.exit(-2)
+    if len(config)!=4:
+        print "Too few options specified."
+        print_help()
 
-client.parse_ntlm_challenge(challenge)
-authenticate = client.make_ntlm_authenticate()
-if proxy.authenticate(authenticate):
-    print "User %s\\%s was authenticated." % (config['user'], config['domain'])
-else:
-    print "User %s\\%s was NOT authenticated." % (config['user'], config['domain'])
+    proxy = NTLM_Proxy(config['address'], config['domain'])
+    client = NTLM_Client(config['user'],config['domain'],config['password'])
 
+    type1 = client.make_ntlm_negotiate()
+    challenge = proxy.negotiate(type1)
+    if not challenge:
+        print "Did not get the challenge!"
+        sys.exit(-2)
 
+    client.parse_ntlm_challenge(challenge)
+    authenticate = client.make_ntlm_authenticate()
+    if proxy.authenticate(authenticate):
+        print "User %s\\%s was authenticated." % (config['user'], config['domain'])
+    else:
+        print "User %s\\%s was NOT authenticated." % (config['user'], config['domain'])
 

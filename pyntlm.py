@@ -26,10 +26,10 @@ from threading import Lock
 
 from mod_python import apache
 from ntlm_proxy import NTLM_Proxy
-import ldap,ldap.sasl
+from ntlm_client import NTLM_Client
 
 #
-# A connection can be in on the following states when a request arrives:
+# A connection can be in one of the following states when a request arrives:
 #
 # 1 Freshly opened: no authentication step has taken place yet.
 #   req.connection.notes does not contain the key 'NTLM_AUTHORIZED' and
@@ -41,8 +41,8 @@ import ldap,ldap.sasl
 #   under the connection's id.
 #
 # 3 Authenticated: all steps completed successfully. 
-#   req.connection.notes contains the key 'NTLM_AUTHORIZED'. The cache should not
-#   contain any tuple under the connection's id.
+#   req.connection.notes contains the key 'NTLM_AUTHORIZED' or 'BASIC_AUTHORIZED'.
+#   The cache should not contain any tuple under the connection's id.
 #
 # Since connections may be interrupted before receiving the challenge, objects older
 # than 60 seconds are removed from cache when we have the chance.
@@ -73,17 +73,51 @@ def parse_ntlm_authenticate(msg):
     return username, domain
 
 def decode_authorization(auth):
-    '''Return the binary NTLM message that was contained in the HTTP Authorization header'''
+    '''Return a tuple with the parsed content of an HTTP Authorization header
+
+    In case of NTLM, the first item is 'NTLM' and the second the Type 1 challenge.
+    In case of Basic, the first item is 'Basic', the second the user name,
+    and the third the password.
+
+    In case of error, False is returned'''
     ah = auth.split(' ')
     if len(ah)==2:
+        b64 = base64.b64decode(ah[1])
         if ah[0]=='NTLM':
-            return base64.b64decode(ah[1])
-            
+            return ('NTLM', b64)
         elif ah[0]=='Basic':
-            return 'basic:%s' %(base64.b64decode(ah[1]))
-
+            (user, password) = b64.split(':')
+            return ('Basic', user, password)
     return False
 
+def connect_to_proxy(req, type1):
+    '''Try to sequentially connect to all Domain Controllers in the list
+    until one is available and can handle the NTLM transaction.
+
+    @return A tuple with a NTLM_Proxy object and a NTLM challenge (Type 2).'''
+
+    # Get configuration entries in Apache file
+    try:
+        domain = req.get_options()['Domain']
+        pdc = req.get_options()['PDC']
+        bdc = req.get_options().get('BDC', False)
+    except KeyError, e:
+        req.log_error('PYNTLM: Incorrect configuration for pyntlm = %s' % str(e), apache.APLOG_CRIT)
+        raise
+    ntlm_challenge = None
+    for server in (pdc, bdc):
+        if not server: continue
+        try:
+            proxy = NTLM_Proxy(server, domain)
+            ntlm_challenge = proxy.negotiate(type1)
+        except Exception, e:
+            req.log_error('PYNTLM: Error when retrieving Type 2 message from DC(%s) = %s' % (server,str(e)), apache.APLOG_CRIT)
+        if ntlm_challenge: break
+        proxy.close()
+    else:
+        raise RunTimeError
+    return (proxy, ntlm_challenge)
+ 
 def handle_type1(req, ntlm_message):
     '''Handle a Type1 NTLM message. Send it to the Domain Controller
     and get back the challenge (the Type2 NTLM message that is).
@@ -100,31 +134,11 @@ def handle_type1(req, ntlm_message):
             del cache[id]
     mutex.release()
 
-    # Get configuration entries in Apache file
     try:
-        domain = req.get_options()['Domain']
-        pdc = req.get_options()['PDC']
-        bdc = req.get_options().get('BDC', False)
+        (proxy, ntlm_challenge) = connect_to_proxy(req, ntlm_message)
     except Exception, e:
-        req.log_error('PYNTLM: Incorrect configuration for pyntlm = %s' % str(e), apache.APLOG_CRIT)
         return apache.HTTP_INTERNAL_SERVER_ERROR
  
-    try:
-        proxy = NTLM_Proxy(pdc, domain)
-        ntlm_challenge = proxy.negotiate(ntlm_message)
-    except Exception, e:
-        proxy.close()
-        req.log_error('PYNTLM: Error when retrieving Type 2 message from PDC(%s) = %s' % (pdc,str(e)), apache.APLOG_CRIT)
-        if not bdc:
-            return apache.HTTP_SERVICE_UNAVAILABLE
-        try:
-            proxy = NTLM_Proxy(bdc, domain)
-            ntlm_challenge = proxy.negotiate(ntlm_message)
-        except Exception, e:
-            proxy.close()
-            req.log_error('PYNTLM: Error when retrieving Type 2 message BDC(%s) = %s ' % (bdc,str(e)), apache.APLOG_CRIT)
-            return apache.HTTP_SERVICE_UNAVAILABLE
-
     mutex.acquire()
     cache[req.connection.id] = ( proxy, int(time.time()) )
     mutex.release()
@@ -155,7 +169,7 @@ def handle_type3(req, ntlm_message):
         del cache[req.connection.id]
     mutex.release()
     if result:
-        req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (domain,user,req.unparsed_uri), apache.APLOG_NOTICE)
+        req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
         req.connection.notes.add('NTLM_AUTHORIZED',user)
         req.user = user
         return apache.OK
@@ -166,37 +180,33 @@ def handle_type3(req, ntlm_message):
         req.err_headers_out.add('Connection', 'close')
         return apache.HTTP_UNAUTHORIZED
     
-def handle_basic(req, ntlm_message):
-    req.log_error('Handling Basic Authentication for URI %s' % (req.unparsed_uri))
-    
-    # show the password dialog, retrieve password and user
-    ah = ntlm_message.split(':')
-    server = req.get_options()['PDC']
-    domain = req.get_options()['Domain']
-    user = "%s\%s" %(domain,ah[1])
-    pw = "%s" %ah[2]
-    
+def handle_basic(req, user, password):
+    '''Handle a request authenticated using the Basic Access Authentication
+    mechanism (RFC2617).
+    '''
+    req.log_error('Handling Basic Access Authentication for URI %s' % (req.unparsed_uri))
+
+    domain = req.get_options().get('Domain', req.auth_name())
+    client = NTLM_Client(user, domain, password)
+    type1 = client.make_ntlm_negotiate()
+
     try:
-        # open a connection to our LDAP server
-        req.log_error('Authenticating %s against %s' %(user,server))
-        l = ldap.open(server)
-        # attempt to bind to the LDAP server
-        l.simple_bind_s(user, pw)
-        dn = l.whoami_s()
-        l.unbind()
+        (proxy, type2) = connect_to_proxy(req, type1)
+    except Exception, e:
+        return apache.HTTP_INTERNAL_SERVER_ERROR
+    
+    client.parse_ntlm_challenge(type2)
+    type3 = client.make_ntlm_authenticate()
+    if proxy.authenticate(type3):
+        req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (domain,user,req.unparsed_uri), apache.APLOG_NOTICE)
+        req.connection.notes.add('BASIC_AUTHORIZED',user)
         req.user = user
         return apache.OK
-
-    except ldap.LDAPError,e:
-        req.log_error('Basic authentication failure: %s' %(e.message['desc'] if type(e.message) == dict and e.message.has_key('desc') else str(e)))
-        return do_challenge(req)
+    else:
+        req.log_error('PYNTLM: User %s/%s at %s failed Basic authentication for URI %s' % (
+            domain,user,req.connection.remote_ip,req.unparsed_uri))
+        return apache.HTTP_UNAUTHORIZED
     
-def do_challenge(req):
-    req.err_headers_out.add('WWW-Authenticate', 'NTLM')
-    req.err_headers_out.add('WWW-Authenticate', 'Basic realm="' + req.auth_name() + '"')
-    req.err_headers_out.add('Connection', 'close')
-    return apache.HTTP_UNAUTHORIZED        
-
 def authenhandler(req):
     '''The request handler called by mod_python in the authentication phase.'''
     req.log_error("PYNTLM: Handling connection 0x%X from address %s for %s URI %s. %d entries in connection cache." % (
@@ -207,7 +217,7 @@ def authenhandler(req):
     if not isinstance(auth_headers, list):
         auth_headers = [ auth_headers ]
 
-    # If this connection is authenticated already, quit immediately with an OK
+    # If this connection was authenticated with NTLM, quit immediately with an OK
     # (unless it comes from IE).
     user = req.connection.notes.get('NTLM_AUTHORIZED', None)
     if user:
@@ -226,30 +236,39 @@ def authenhandler(req):
         else:
             return apache.OK
     
+    # If this connection was authenticated with Basic, quit immediately with an OK
+    if req.connection.notes.has_key('BASIC_AUTHORIZED'):
+        return apache.OK
+
     # If there is no Authorization header it means it is the first request.
     # We reject it with a 401, indicating which authentication protocol we understand.
     if not auth_headers:
-        return do_challenge(req)
+        req.err_headers_out.add('WWW-Authenticate', 'NTLM')
+        req.err_headers_out.add('WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
+        req.err_headers_out.add('Connection', 'close')
+        return apache.HTTP_UNAUTHORIZED
 
-    # Extract ntlm_message from any of the Authorization headers
+    # Extract authentication data from any of the Authorization headers
     try:
         for ah in auth_headers:
-            ntlm_message = decode_authorization(ah)
-            if ntlm_message:
+            ah_data = decode_authorization(ah)
+            if ah_data:
                 break
     except:
-        ntlm_message = False
+        ah_data = False
     
-    if not ntlm_message:
-        req.log_error('Error when parsing NTLM Authorization header from address %s and URI %s' % (
+    if not ah_data:
+        req.log_error('Error when parsing Authorization header from address %s and URI %s' % (
         req.connection.remote_ip,req.unparsed_uri), apache.APLOG_ERR)
         return apache.HTTP_BAD_REQUEST
 
-    if ntlm_message.startswith('basic:'):
-        return handle_basic(req, ntlm_message)
+    if ah_data[0]=='Basic':
+        return handle_basic(req, ah_data[1], ah_data[2])
 
+    # If there is an Authorization header, and the connection is known it means
+    # that we are processing the last message (response from client to server).
     if cache.has_key(req.connection.id):
-        return handle_type3(req, ntlm_message)
+        return handle_type3(req, ah_data[1])
     
-    return handle_type1(req, ntlm_message) 
+    return handle_type1(req, ah_data[1]) 
 
