@@ -237,7 +237,9 @@ def authenhandler(req):
             return apache.OK
     
     # If this connection was authenticated with Basic, quit immediately with an OK
-    if req.connection.notes.has_key('BASIC_AUTHORIZED'):
+    user = req.connection.notes.get('BASIC_AUTHORIZED')
+    if user:
+        req.user = user
         return apache.OK
 
     # If there is no Authorization header it means it is the first request.
