@@ -237,7 +237,7 @@ def authenhandler(req):
             return apache.OK
     
     # If this connection was authenticated with Basic, quit immediately with an OK
-    user = req.connection.notes.get('BASIC_AUTHORIZED')
+    user = req.connection.notes.get('BASIC_AUTHORIZED', None)
     if user:
         req.user = user
         return apache.OK
