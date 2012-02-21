@@ -23,6 +23,7 @@ import base64
 import time
 from struct import unpack
 from threading import Lock
+from binascii import hexlify
 
 from mod_python import apache
 from ntlm_proxy import NTLM_Proxy
@@ -50,6 +51,14 @@ from ntlm_client import NTLM_Client
 mutex = Lock()
 cache = {}
 
+def ntlm_message_version(msg):
+    if not msg.startswith('NTLMSSP\x00') or len(msg)<12:
+        raise RuntimeError("Not a valid NTLM message: '%s'" % hexlify(msg))
+    msg_type = unpack('<I', msg[8:8+4])
+    if msg_type not in (1,2,3):
+        raise RuntimeError("Incorrect NTLM message Type: %d" % msg_type)
+    return msg_type
+
 def parse_ntlm_authenticate(msg):
     '''Parse a Type3 NTLM message (binary form, not encoded in Base64).
 
@@ -57,8 +66,6 @@ def parse_ntlm_authenticate(msg):
     '''
     
     NTLMSSP_NEGOTIATE_UNICODE = 0x00000001
-    if not msg.startswith('NTLMSSP\x00\x03\x00\x00\x00'):
-        return
     idx = 28
     length, offset = unpack('<HxxI', msg[idx:idx+8])
     domain = msg[offset:offset+length]
@@ -115,7 +122,7 @@ def connect_to_proxy(req, type1):
         if ntlm_challenge: break
         proxy.close()
     else:
-        raise RunTimeError
+        raise RuntimeError("None of the Domain Controllers are available.")
     return (proxy, ntlm_challenge)
  
 def handle_type1(req, ntlm_message):
@@ -161,6 +168,7 @@ def handle_type3(req, ntlm_message):
         result = proxy.authenticate(ntlm_message)
     except Exception, e:
         req.log_error('PYNTLM: Error when retrieving Type 3 message from DC = %s' % str(e), apache.APLOG_CRIT)
+        user, domain = 'invalid', 'invalid'
         result = False
     mutex.acquire()
     proxy.close()
@@ -268,9 +276,19 @@ def authenhandler(req):
         return handle_basic(req, ah_data[1], ah_data[2])
 
     # If there is an Authorization header, and the connection is known it means
-    # that we are processing the last message (response from client to server).
-    if cache.has_key(req.connection.id):
-        return handle_type3(req, ah_data[1])
-    
-    return handle_type1(req, ah_data[1]) 
+    # that we are probably processing the last message (type 3, response from client to server).
+    # However, we still check the NTLM type since the client may still send
+    # the first message (type 1).
+    try:
+        error = ''
+        ntlm_version = ntlm_message_version(ah_data[1])
+        if ntlm_version==1:
+            return handle_type1(req, ah_data[1]) 
+        if ntlm_version==3 and cache.has_key(req.connection.id):
+            return handle_type3(req, ah_data[1])
+    except e:
+        error = str(e)
+    req.log_error('Incorrect NTLM message in Authorization header from address %s and URI %s: %s' %
+            (req.connection.remote_ip,req.unparsed_uri,error), apache.APLOG_ERR)
+    return apache.HTTP_BAD_REQUEST
 
