@@ -54,7 +54,7 @@ cache = {}
 def ntlm_message_version(msg):
     if not msg.startswith('NTLMSSP\x00') or len(msg)<12:
         raise RuntimeError("Not a valid NTLM message: '%s'" % hexlify(msg))
-    msg_type = unpack('<I', msg[8:8+4])
+    msg_type = unpack('<I', msg[8:8+4])[0]
     if msg_type not in (1,2,3):
         raise RuntimeError("Incorrect NTLM message Type: %d" % msg_type)
     return msg_type
@@ -286,7 +286,7 @@ def authenhandler(req):
             return handle_type1(req, ah_data[1]) 
         if ntlm_version==3 and cache.has_key(req.connection.id):
             return handle_type3(req, ah_data[1])
-    except e:
+    except Exception, e:
         error = str(e)
     req.log_error('Incorrect NTLM message in Authorization header from address %s and URI %s: %s' %
             (req.connection.remote_ip,req.unparsed_uri,error), apache.APLOG_ERR)
