@@ -252,7 +252,7 @@ if __name__ == '__main__':
 
     try:
         options, remain = getopt.getopt(sys.argv[1:],'hu:p:d:a:',['help', 'user=', 'password=', 'domain=', 'address='])
-    except getopt.GetoptError as err:
+    except getopt.GetoptError, err:
         print err.msg
         print_help()
     if remain:
