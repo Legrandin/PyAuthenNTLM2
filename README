@@ -51,7 +51,8 @@ Usage is best shown by an example of Apache configuration:
     AuthType NTLM
     AuthName WDOMAIN
     require valid-user
-    PythonAuthenHandler /usr/local/lib/python2.6/dist-packages/pyntlm.py
+
+    PythonAuthenHandler pyntlm
     PythonOption Domain WDOMAIN
     PythonOption PDC 192.1.2.45
     PythonOption BDC 192.1.2.46
