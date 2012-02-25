@@ -27,7 +27,12 @@ from binascii import hexlify
 
 from mod_python import apache
 from ntlm_proxy import NTLM_Proxy
-from ntlm_client import NTLM_Client
+
+use_basic_auth = True
+try:
+    from ntlm_client import NTLM_Client
+except ImportError:
+    use_basic_auth = False
 
 #
 # A connection can be in one of the following states when a request arrives:
@@ -92,7 +97,7 @@ def decode_authorization(auth):
         b64 = base64.b64decode(ah[1])
         if ah[0]=='NTLM':
             return ('NTLM', b64)
-        elif ah[0]=='Basic':
+        elif ah[0]=='Basic' and use_basic_auth:
             (user, password) = b64.split(':')
             return ('Basic', user, password)
     return False
@@ -254,7 +259,8 @@ def authenhandler(req):
     # We reject it with a 401, indicating which authentication protocol we understand.
     if not auth_headers:
         req.err_headers_out.add('WWW-Authenticate', 'NTLM')
-        req.err_headers_out.add('WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
+        if use_basic_auth:
+            req.err_headers_out.add('WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
         req.err_headers_out.add('Connection', 'close')
         return apache.HTTP_UNAUTHORIZED
 
