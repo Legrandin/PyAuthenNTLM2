@@ -47,14 +47,54 @@ except ImportError:
 #   under the connection's id.
 #
 # 3 Authenticated: all steps completed successfully. 
-#   req.connection.notes contains the key 'NTLM_AUTHORIZED' or 'BASIC_AUTHORIZED'.
+#   req.connection.notes contains the key 'NTLM_AUTHORIZED' (username) or
+#   'BASIC_AUTHORIZED' (username and a password).
 #   The cache should not contain any tuple under the connection's id.
 #
 # Since connections may be interrupted before receiving the challenge, objects older
 # than 60 seconds are removed from cache when we have the chance.
 
-mutex = Lock()
-cache = {}
+class Cache:
+
+    def __init__(self):
+        self._mutex = Lock()
+        self._cache = {}
+
+    def __len__(self):
+        return len(self._cache)
+
+    def remove(self, id):
+        self._mutex.acquire()
+        (proxy, ts) = self._cache.get(id, (None,None))
+        if proxy:
+            proxy.close()
+            del self._cache[id]
+        self._mutex.release()
+
+    def add(self, id, proxy):
+        self._mutex.acquire()
+        self._cache[id] = ( proxy, int(time.time()) )
+        self._mutex.release()
+    
+    def clean(self):
+        now = int(time.time())
+        self._mutex.acquire()
+        for id, conn in self._cache.items():
+            if conn[1]+60<now:
+                conn[0].close()
+                del self._cache[id]
+        self._mutex.release()
+
+    def has_key(self,id):
+        return self._cache.has_key(id)
+
+    def get_proxy(self, id):
+        self._mutex.acquire()
+        proxy = self._cache[id][0]
+        self._mutex.release()
+        return proxy
+
+cache = Cache()
 
 def ntlm_message_version(msg):
     if not msg.startswith('NTLMSSP\x00') or len(msg)<12:
@@ -102,6 +142,13 @@ def decode_authorization(auth):
             return ('Basic', user, password)
     return False
 
+def handle_unauthorized(req):
+    req.err_headers_out.add('WWW-Authenticate', 'NTLM')
+    if use_basic_auth:
+        req.err_headers_out.add('WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
+    req.err_headers_out.add('Connection', 'close')
+    return apache.HTTP_UNAUTHORIZED
+
 def connect_to_proxy(req, type1):
     '''Try to sequentially connect to all Domain Controllers in the list
     until one is available and can handle the NTLM transaction.
@@ -137,23 +184,15 @@ def handle_type1(req, ntlm_message):
     @req            The request that carried the message
     @ntlm_message   The actual Type1 message, in binary format
     '''
-    # Cache clean up: everything older than 60 seconds is removed
-    now = int(time.time())
-    mutex.acquire()
-    for id, conn in cache.items():
-        if conn[1]+60<now:
-            conn[0].close()
-            del cache[id]
-    mutex.release()
+    cache.remove(req.connection.id)
+    cache.clean()
 
     try:
         (proxy, ntlm_challenge) = connect_to_proxy(req, ntlm_message)
     except Exception, e:
         return apache.HTTP_INTERNAL_SERVER_ERROR
- 
-    mutex.acquire()
-    cache[req.connection.id] = ( proxy, int(time.time()) )
-    mutex.release()
+
+    cache.add(req.connection.id, proxy)
     req.err_headers_out.add('WWW-Authenticate', "NTLM " + base64.b64encode(ntlm_challenge))
     return apache.HTTP_UNAUTHORIZED
 
@@ -165,9 +204,7 @@ def handle_type3(req, ntlm_message):
     @ntlm_message   The actual Type3 message, in binary format
     '''
     
-    mutex.acquire()
-    proxy = cache[req.connection.id][0]
-    mutex.release()
+    proxy = cache.get_proxy(req.connection.id)
     try:
         user, domain = parse_ntlm_authenticate(ntlm_message)
         result = proxy.authenticate(ntlm_message)
@@ -175,23 +212,16 @@ def handle_type3(req, ntlm_message):
         req.log_error('PYNTLM: Error when retrieving Type 3 message from DC = %s' % str(e), apache.APLOG_CRIT)
         user, domain = 'invalid', 'invalid'
         result = False
-    mutex.acquire()
-    proxy.close()
-    if cache.has_key(req.connection.id):
-        req.log_error("PYNTLM: Cleaning up cache from connection 0x%X" % req.connection.id, apache.APLOG_DEBUG)
-        del cache[req.connection.id]
-    mutex.release()
-    if result:
-        req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
-        req.connection.notes.add('NTLM_AUTHORIZED',user)
-        req.user = user
-        return apache.OK
-    else:
+    cache.remove(req.connection.id)
+    if not result:
         req.log_error('PYNTLM: User %s/%s at %s failed authentication for URI %s' % (
             domain,user,req.connection.remote_ip,req.unparsed_uri))
-        req.err_headers_out.add('WWW-Authenticate', 'NTLM')
-        req.err_headers_out.add('Connection', 'close')
-        return apache.HTTP_UNAUTHORIZED
+        return handle_unauthorized(req)
+
+    req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
+    req.connection.notes.add('NTLM_AUTHORIZED',user)
+    req.user = user
+    return apache.OK
     
 def handle_basic(req, user, password):
     '''Handle a request authenticated using the Basic Access Authentication
@@ -210,15 +240,15 @@ def handle_basic(req, user, password):
     
     client.parse_ntlm_challenge(type2)
     type3 = client.make_ntlm_authenticate()
-    if proxy.authenticate(type3):
-        req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (domain,user,req.unparsed_uri), apache.APLOG_NOTICE)
-        req.connection.notes.add('BASIC_AUTHORIZED',user)
-        req.user = user
-        return apache.OK
-    else:
+    if not proxy.authenticate(type3):
         req.log_error('PYNTLM: User %s/%s at %s failed Basic authentication for URI %s' % (
             domain,user,req.connection.remote_ip,req.unparsed_uri))
-        return apache.HTTP_UNAUTHORIZED
+        return handle_unauthorized(req)
+    
+    req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
+    req.connection.notes.add('BASIC_AUTHORIZED', (user,password))
+    req.user = user
+    return apache.OK
     
 def authenhandler(req):
     '''The request handler called by mod_python in the authentication phase.'''
@@ -249,20 +279,10 @@ def authenhandler(req):
         else:
             return apache.OK
     
-    # If this connection was authenticated with Basic, quit immediately with an OK
-    user = req.connection.notes.get('BASIC_AUTHORIZED', None)
-    if user:
-        req.user = user
-        return apache.OK
-
     # If there is no Authorization header it means it is the first request.
     # We reject it with a 401, indicating which authentication protocol we understand.
     if not auth_headers:
-        req.err_headers_out.add('WWW-Authenticate', 'NTLM')
-        if use_basic_auth:
-            req.err_headers_out.add('WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
-        req.err_headers_out.add('Connection', 'close')
-        return apache.HTTP_UNAUTHORIZED
+        return handle_unauthorized(req)
 
     # Extract authentication data from any of the Authorization headers
     try:
@@ -279,19 +299,42 @@ def authenhandler(req):
         return apache.HTTP_BAD_REQUEST
 
     if ah_data[0]=='Basic':
+        # If this connection was authenticated with Basic, verify that the
+        # credentials match and return 200 (if they do) or 401 (if they
+        # don't). We don't need to actually query the DC for that.
+        user, password = req.connection.notes.get('BASIC_AUTHORIZED', (None,None))
+        if user:
+            if [user, password] != ah_data[1:]:
+                return handle_unauthorized(req)
+            req.user = user
+            return apache.OK
+        # Connection was not authenticated before
         return handle_basic(req, ah_data[1], ah_data[2])
 
-    # If there is an Authorization header, and the connection is known it means
-    # that we are probably processing the last message (type 3, response from client to server).
-    # However, we still check the NTLM type since the client may still send
-    # the first message (type 1).
+    # If we get here it means that there is an Authorization header, with an
+    # NTLM message in it. Moreover, the connection needs to be (re)authorized.
+    # Most likely, the NTLM message is of:
+    # - Type 1 (and there is nothing in the cache): the client wants to
+    #   authorize for the first time,
+    # - Type 3 (and there is something in the cache): the client wants to finalize
+    #   a pending authorization request.
+    #
+    # However, it could still be that there is a Type 3 and nothing in the
+    # cache (the final client message was erroneously routed to a new connection),
+    # or that there is a Type 1 with something in the cache (the client wants to
+    # initiate an cancel a pending authorization).
+
     try:
-        error = ''
         ntlm_version = ntlm_message_version(ah_data[1])
         if ntlm_version==1:
             return handle_type1(req, ah_data[1]) 
-        if ntlm_version==3 and cache.has_key(req.connection.id):
-            return handle_type3(req, ah_data[1])
+        if ntlm_version==3:
+            if cache.has_key(req.connection.id):
+                return handle_type3(req, ah_data[1])
+            req.log_error('Unexpected NTLM message Type 3 in new connection from address %s and URI %s' %
+                (req.connection.remote_ip,req.unparsed_uri), apache.APLOG_INFO)
+            return handle_unauthorized(req)
+        error = 'Type 2 message in client request'
     except Exception, e:
         error = str(e)
     req.log_error('Incorrect NTLM message in Authorization header from address %s and URI %s: %s' %
