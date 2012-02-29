@@ -246,7 +246,7 @@ def handle_basic(req, user, password):
         return handle_unauthorized(req)
     
     req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
-    req.connection.notes.add('BASIC_AUTHORIZED', (user,password))
+    req.connection.notes.add('BASIC_AUTHORIZED', user+password)
     req.user = user
     return apache.OK
     
@@ -302,11 +302,11 @@ def authenhandler(req):
         # If this connection was authenticated with Basic, verify that the
         # credentials match and return 200 (if they do) or 401 (if they
         # don't). We don't need to actually query the DC for that.
-        user, password = req.connection.notes.get('BASIC_AUTHORIZED', (None,None))
-        if user:
-            if [user, password] != ah_data[1:]:
+        userpwd = req.connection.notes.get('BASIC_AUTHORIZED', None)
+        if userpwd:
+            if userpwd != ah_data[1]+ah_data[2]:
                 return handle_unauthorized(req)
-            req.user = user
+            req.user = ah_data[1]
             return apache.OK
         # Connection was not authenticated before
         return handle_basic(req, ah_data[1], ah_data[2])
