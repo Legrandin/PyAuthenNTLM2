@@ -10,7 +10,10 @@ The specific use case of PyAuthenNTLM2 is the following:
    credentials to be used for HTTP authentication.
  * Apache runs on a server that is not part of the Windows domain.
  * Some of the users cannot use Kerberos. For instance, they connect via a proxy
-   or they use machines that are not part of the domain.
+   or they use machines that are not part of the domain. However, their client
+   supports NTLM (all browsers do nowadays).
+ * Some of the users can only use Basic, not even NTLM (possibly because they
+   don't use a browser).
 
 Although Kerberos (including its Microsoft variant "Integrated Windows
 Authentication") is the best option in terms of security for HTTP
@@ -26,12 +29,15 @@ Note that NTLMv1 is based on cryptography that by today standards is very weak.
 Ensure that your clients always use NTLMv2. PyAuthenNTLM2 handles equally well
 all the various NTLM variants (such as NTLMv2 Session, and NTLMv2).
 
+PyAuthenNTLM2 allows clients to authenticate via two schemes: NTLM or Basic.
+
 Requirements
 ============
 
 * Mod-python [4]
 * Python 2.x
 * Apache 2.x
+* PyCrypto 2.x (not required, but Basic auth will not be supported without it)
 
 Test was carried out with:
  - a server with mod-python 3.3.1, Apache 2.2, and Python 2.6. 
@@ -124,8 +130,6 @@ References
 
 TODO
 ====
-Add sample NTLM client, so that you can test without a browser.
-Right now, PyAuthenNTLM2 is authoritative. It can be improved to allow to work along with other schemes, like Basic.
 Since mod-python is not that active anymore, port it to modwsgi.
 Extend it so that it can be used also for group authorization, where groups are defined in AD.
 Add support for lighttpd.
