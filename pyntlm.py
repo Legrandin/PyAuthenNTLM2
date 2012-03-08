@@ -26,7 +26,7 @@ from threading import Lock
 from binascii import hexlify
 
 from mod_python import apache
-from ntlm_proxy import NTLM_Proxy
+from ntlm_dc_proxy import NTLM_DC_Proxy
 
 use_basic_auth = True
 try:
@@ -153,7 +153,7 @@ def connect_to_proxy(req, type1):
     '''Try to sequentially connect to all Domain Controllers in the list
     until one is available and can handle the NTLM transaction.
 
-    @return A tuple with a NTLM_Proxy object and a NTLM challenge (Type 2).'''
+    @return A tuple with a NTLM_DC_Proxy object and a NTLM challenge (Type 2).'''
 
     # Get configuration entries in Apache file
     try:
@@ -167,7 +167,7 @@ def connect_to_proxy(req, type1):
     for server in (pdc, bdc):
         if not server: continue
         try:
-            proxy = NTLM_Proxy(server, domain)
+            proxy = NTLM_DC_Proxy(server, domain)
             ntlm_challenge = proxy.negotiate(type1)
         except Exception, e:
             req.log_error('PYNTLM: Error when retrieving Type 2 message from DC(%s) = %s' % (server,str(e)), apache.APLOG_CRIT)

@@ -24,7 +24,7 @@ import getopt
 from struct import pack, unpack
 from binascii import hexlify, unhexlify
 from Crypto.Hash import MD4, HMAC
-from ntlm_proxy import SMB_Context, NTLM_Proxy
+from ntlm_dc_proxy import NTLM_DC_Proxy
 
 def tuc(s):
     return s.encode('utf-16-le')
@@ -275,7 +275,7 @@ if __name__ == '__main__':
         print "Too few options specified."
         print_help()
 
-    proxy = NTLM_Proxy(config['address'], config['domain'])
+    proxy = NTLM_DC_Proxy(config['address'], config['domain'])
     client = NTLM_Client(config['user'],config['domain'],config['password'])
 
     type1 = client.make_ntlm_negotiate()
