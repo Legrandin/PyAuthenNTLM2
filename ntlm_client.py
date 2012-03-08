@@ -25,6 +25,7 @@ from struct import pack, unpack
 from binascii import hexlify, unhexlify
 from Crypto.Hash import MD4, HMAC
 from ntlm_dc_proxy import NTLM_DC_Proxy
+from ntlm_ad_proxy import NTLM_AD_Proxy
 
 def tuc(s):
     return s.encode('utf-16-le')
@@ -275,7 +276,13 @@ if __name__ == '__main__':
         print "Too few options specified."
         print_help()
 
-    proxy = NTLM_DC_Proxy(config['address'], config['domain'])
+    if config['address'].startswith('ldap:'):
+        print "Using Active Directory (LDAP) to verify credentials."
+        proxy = NTLM_AD_Proxy(config['address'], config['domain'])
+    else:
+        print "Using Domain Controller to verify credentials."
+        proxy = NTLM_DC_Proxy(config['address'], config['domain'])
+    
     client = NTLM_Client(config['user'],config['domain'],config['password'])
 
     type1 = client.make_ntlm_negotiate()
