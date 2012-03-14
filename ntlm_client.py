@@ -278,7 +278,7 @@ if __name__ == '__main__':
 
     if config['address'].startswith('ldap:'):
         print "Using Active Directory (LDAP) to verify credentials."
-        proxy = NTLM_AD_Proxy(config['address'], config['domain'])
+        proxy = NTLM_AD_Proxy(config['address'][7:], config['domain'])
     else:
         print "Using Domain Controller to verify credentials."
         proxy = NTLM_DC_Proxy(config['address'], config['domain'])
@@ -298,3 +298,4 @@ if __name__ == '__main__':
     else:
         print "User %s\\%s was NOT authenticated." % (config['user'], config['domain'])
 
+    proxy.close()

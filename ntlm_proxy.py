@@ -65,12 +65,14 @@ class NTLM_Proxy:
     def negotiate(self, ntlm_negotiate):
         """Accept a Negotiate NTLM message (Type 1), and return a Challenge message (Type 2)."""
        
-        # First transaction: open the connection
         self._openConnection()
         self.proto = self.protoFactory()
+
+        # First transaction: negotiation (optional)
         msg = self.proto.make_negotiate_protocol_req()
-        msg = self._transaction(msg)
-        self.proto.parse_negotiate_protocol_resp(msg)
+        if msg:
+            msg = self._transaction(msg)
+            self.proto.parse_negotiate_protocol_resp(msg)
 
         # Second transaction: get the challenge
         msg = self.proto.make_session_setup_req(ntlm_negotiate, True)
@@ -85,7 +87,5 @@ class NTLM_Proxy:
 
         msg = self.proto.make_session_setup_req(ntlm_authenticate, False)
         msg = self._transaction(msg)
-        self.close()
         return self.proto.parse_session_setup_resp(msg)[0]
 
-     
