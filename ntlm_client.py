@@ -21,9 +21,14 @@
 import os
 import sys
 import getopt
+import urllib
+
 from struct import pack, unpack
 from binascii import hexlify, unhexlify
+from urlparse import urlparse
+
 from Crypto.Hash import MD4, HMAC
+
 from ntlm_dc_proxy import NTLM_DC_Proxy
 from ntlm_ad_proxy import NTLM_AD_Proxy
 
@@ -242,7 +247,16 @@ class NTLM_Client:
 def print_help():
     print
     print "Performs an NTLM authentication for user\\DOMAIN against the Domain Controller at the given address:"
-    print "ntlm_client {-u|--user} usr {-p|--password} pwd {-d|--domain} DOMAIN {-a|--address} address"
+    print "ntlm_client {-u|--user} usr {-p|--password} pwd {-d|--domain} DOMAIN {-a|--address} [{-g|--group} name[,name]* ] address"
+    print
+    print "Where:"
+    print "    An address starting with 'ldap://' is an URI of an Active Directory server."
+    print "    The URI has format ldap://serveraddres/dn"
+    print "        - serveraddress is the IP or the hostname of the AD server."
+    print "        - dn is the base Distinguished name to use for the LDAP search."
+    print "          Special characters must be escaped (space=%20, comma=%2C, equals=%3D)"
+    print
+    print "    Otherwise, the address is the IP or the hostname of a Domain Controller."
     sys.exit(-1)
 
 if __name__ == '__main__':
@@ -252,7 +266,7 @@ if __name__ == '__main__':
         print_help()
 
     try:
-        options, remain = getopt.getopt(sys.argv[1:],'hu:p:d:a:',['help', 'user=', 'password=', 'domain=', 'address='])
+        options, remain = getopt.getopt(sys.argv[1:],'hu:p:d:a:g:',['help', 'user=', 'password=', 'domain=', 'address=', 'group='])
     except getopt.GetoptError, err:
         print err.msg
         print_help()
@@ -271,14 +285,17 @@ if __name__ == '__main__':
             config['domain'] = v
         elif o in ['-a', '--address']:
             config['address'] = v
+        elif o in ['-g', '--group']:
+            config['group'] = v.split(',')
 
-    if len(config)!=4:
+    if len(config)<4:
         print "Too few options specified."
         print_help()
 
     if config['address'].startswith('ldap:'):
         print "Using Active Directory (LDAP) to verify credentials."
-        proxy = NTLM_AD_Proxy(config['address'][7:], config['domain'])
+        url = urlparse(config['address'])
+        proxy = NTLM_AD_Proxy(url.netloc, config['domain'])
     else:
         print "Using Domain Controller to verify credentials."
         proxy = NTLM_DC_Proxy(config['address'], config['domain'])
@@ -295,7 +312,18 @@ if __name__ == '__main__':
     authenticate = client.make_ntlm_authenticate()
     if proxy.authenticate(authenticate):
         print "User %s\\%s was authenticated." % (config['user'], config['domain'])
+        
+        # Group membership check
+        if config['address'].startswith('ldap:') and config.has_key('group'):
+            url = urlparse(config['address'])
+            base = urllib.unquote(url.path)[1:]
+            res = proxy.check_membership(config['user'], config['group'], base)
+            if res:
+                print "User belongs to at least one group."
+            else:
+                print "User does NOT belong to any group."
+
     else:
         print "User %s\\%s was NOT authenticated." % (config['user'], config['domain'])
-
     proxy.close()
+

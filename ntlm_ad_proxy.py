@@ -51,8 +51,13 @@ class LDAP_Context:
         pass
 
     def make_session_setup_req(self, ntlm_token, type1=True):
-        """Create an LDAP bind request, that can be sent to the AD server."""
-        
+        """Create an LDAP bind request that can be sent to the AD server.
+
+        @ntlm_token     The NTLM message
+        @type1          True for Type 1, False for Type 3
+        @return         The LDAP request
+        """
+
         credentials = makeoctstr(make_token(ntlm_token, type1))
         # authentication has CONTEXT IMPLICIT tag [3] for constructed type (SEQUENCE)
         authentication = maketlv('\xA3', makeoctstr('GSS-SPNEGO') + credentials)
@@ -63,13 +68,21 @@ class LDAP_Context:
         return makeseq(makeint(self.messageID) + bindRequest)
 
     def parse_session_setup_resp(self, response):
-        """Parse an LDAP bind response."""
+        """Parse the LDAP bind response, as received from the AD.
         
+        @response       The LDAP response received from the AD
+        @return         A tuple where:
+                          - the 1st item is a boolean. If False the user
+                            is not authenticated
+                          - the 2nd item is the NTLM Message2 (1st respone)
+                            or is empty (2nd response)
+        """
+
         # LDAPMessage
         data = parseseq(response)
         messageID, data = parseint(data, True)
         if messageID!=self.messageID:
-            raise LDAP_Parse_Exception("Unexpected MessageID: %d" % messageID)
+            raise LDAP_Parse_Exception("Unexpected MessageID: %d instead of %d" % (messageID, self.messageID))
         # BindResponse has APPLICATION IMPLICIT tag [1] for constructed type (SEQUENCE)
         data = parsetlv('\x61', data)
         # LDAPResult components
@@ -80,7 +93,7 @@ class LDAP_Context:
         if resultCode==self.LDAP_Result_success:
             return (True, '')
         if resultCode!=self.LDAP_Result_saslBindInProgress:
-            raise LDAP_Parse_Exception(diagnosticMessage)
+            return (False, '')
         # SASL credentials has CONTEXT IMPLICIT tag [7] for primitive type (OCTET STRING)
         serverSaslCreds = parsetlv('\x87', data)
         return (True, extract_token(serverSaslCreds))
@@ -89,18 +102,22 @@ class LDAP_Context:
         """Create an LDAP search request that can be sent to the AD server.
          
          @base          The DN to start the search from.
-         @criteria      A dictionary with the attributes to look for (must be one only for now)
+         @criteria      A dictionary with the attributes to look for (zero or one object for now)
          @attributes    A list of attributes to return.
          @return        The LDAP request to send to the AD server.
         """
 
-        assert(len(criteria)==1)
+        assert(len(criteria)<=1)
 
         # AttributeSelection
         ldapattributes = makeseq(''.join([makeoctstr(x) for x in attributes]))
         # Filter is a choice with CONTEXT IMPLICIT tags
-        # Here we only use equalityMatch which has tag [3] for constructured type (SEQUENCE)
-        ldapfilter = maketlv('\xA3', makeoctstr(criteria.keys()[0]) + makeoctstr(criteria.values()[0]))
+        if criteria:
+            # equalityMatch has tag [3] for constructured type (SEQUENCE)
+            ldapfilter = maketlv('\xA3', makeoctstr(criteria.keys()[0]) + makeoctstr(criteria.values()[0]))
+        else:
+            # present has tag [7] for primitive type (OCTET STRING)
+            ldapfilter = maketlv('\x87', 'objectClass')
         # SearchRequest has APPLICATION IMPLICIT tag [3] for constructed type (SEQUENCE)
         searchRequest = maketlv('\x63', makeoctstr(base) + makeenum(self.Scope_wholeSubtree) +
             makeenum(3) + makeint(0) + makeint(0) + makebool(False) + ldapfilter + ldapattributes)
@@ -121,29 +138,25 @@ class LDAP_Context:
         data = parseseq(response)
         messageID, data = parseint(data, True)
         if messageID!=self.messageID:
-            raise LDAP_Parse_Exception("Unexpected MessageID: %d" % messageID)
+            raise LDAP_Parse_Exception("Unexpected MessageID: %d instead of %d" % (messageID, self.messageID))
         # SearchResultDone has APPLICATION IMPLICIT tag [5] for primitive type (OCTET STRING)
         if data[0]=='\x65':
             data = parsetlv('\x65', data)
             resultCode, data = parseenum(data, True)
             matchedDN, data = parseoctstr(data, True)
             diagnosticMessage, data = parseoctstr(data, True)
-            print "Finished search results. Code %d. Message: %s." % (resultCode, diagnosticMessage)
+            if resultCode:
+                print "Failed search. Code %d. Message: %s." % (resultCode, diagnosticMessage)
             return (True, diagnosticMessage)
         # SearchResultReference has APPLICATION IMPLICIT tag [19] for constructed type (SEQUENCE)
         if data[0]=='\x73':
-            data = parsetlv('\x73', data)
-            while data:
-                uri, data = parseoctstr(data, True)
-                print "URI", uri
-            return (True, None, {})
+            return (False, None, {})
         # SearchResultEntry has APPLICATION IMPLICIT tag [4] for constructed type (SEQUENCE)
         data = parsetlv('\x64', data)
 
         attributes = {}
         objectName, data = parseoctstr(data, True)
         attributelist = parseseq(data)
-        #import pdb; pdb.set_trace()
         while attributelist:
             # Payload of a PartialAttribute
             partattr, attributelist = parseseq(attributelist, True)
@@ -164,30 +177,45 @@ class NTLM_AD_Proxy(NTLM_Proxy):
     _portad = 389
 
     def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None):
-        print "OOO", ipad
         NTLM_Proxy.__init__(self, ipad, self._portad, domain, lambda: LDAP_Context(), socketFactory)
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
-    def check_membership(self, user, group, base):
-        """Check if the given user belong to the given group.
+    def check_membership(self, user, groups, base):
+        """Check if the given user belong to ANY of the given groups.
 
         @user   The sAMAccountName attribute of the user
-        @group  The sAMAccountName attribute of the group
+        @group  A list of sAMAccountName attributes (one per group)
         @base   The basis DN for the search
         @return True if the user belongs to the group, False otherwise.
         """
 
-        if (user==group):
-            return True
-        result = {}
-        msg = self.proto.make_search_req(base, { 'sAMAccountName':user }, ['sAMAccountName','memberOf'])
+        if user:
+            #print "Checking if user %s belongs to group %s (base=%s)" % (user,group,base)
+            msg = self.proto.make_search_req(base, { 'sAMAccountName':user }, ['memberOf','sAMAccountName'])
+        else:
+            #print "Checking if group %s is a sub-group of %s" % (group,base)
+            msg = self.proto.make_search_req(base, {}, ['memberOf','sAMAccountName'])
         msg = self._transaction(msg)
+        result = {}
         while True:
             resp = self.proto.parse_search_resp(msg)
+            # Search is complete
             if resp[0]:
                 break
+            # Partial result, search is still ongoing
             if resp[1]:
                 result[resp[1]] = resp[2]
             msg = self._transaction('')
-        print result
-
+        if not result:
+            return False
+        assert(len(result)==1)
+        #print "sAMAccountName:", result.values()[0]['sAMAccountName']
+        for g in groups:
+            if g in result.values()[0]['sAMAccountName']:
+                return True
+        # Cycle through all the DNs of the groups this user/group belongs to
+        topgroups = result.values()[0].get('memberOf', {})
+        for x in topgroups:
+            if self.check_membership(None,groups,x):
+                return True
+        return False
