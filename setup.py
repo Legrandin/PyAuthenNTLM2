@@ -6,6 +6,7 @@ setup(  name='PyAuthenNTLM2',
         author='Legrandin',
         author_email='gooksankoo@hoiptorrow.mailexpire.com',
         license='Apache 2.0',
-        py_modules=['ntlm_client','ntlm_proxy','pyntlm']
+        py_modules=['pyntlm'],
+        packages=['PyAuthenNTLM2'],
 )
 

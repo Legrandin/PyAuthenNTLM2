@@ -26,7 +26,7 @@ from threading import Lock
 from binascii import hexlify
 
 from mod_python import apache
-from ntlm_dc_proxy import NTLM_DC_Proxy
+from PyAuthenNTLM2.ntlm_dc_proxy import NTLM_DC_Proxy
 
 use_basic_auth = True
 try:
