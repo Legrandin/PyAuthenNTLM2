@@ -1,0 +1,11 @@
+== Changelog
+
+-- Version 2.1, 6 March 2012
+* Added support for Basic authentication (thanks gmazzo!).
+* Added two scripts for testing without a browser ({http|ntlm}_client.py).
+* More details in the documentation.
+* General clean up and better error handling.
+
+-- Version 2.0, 20 December 2011
+* First release
+

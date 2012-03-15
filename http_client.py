@@ -2,7 +2,7 @@
 #
 # PyAuthenNTLM2: A mod-python module for Apache that carries out NTLM authentication
 #
-# web_client.py
+# http_client.py
 #
 # Copyright 2012 Legrandin <gooksankoo@hoiptorrow.mailexpire.com>
 #

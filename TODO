@@ -1,2 +1,7 @@
-i
+TODO
+====
+Since mod-python is not that active anymore, port it to modwsgi.
+Extend it so that it can be used also for group authorization, where groups are defined in AD.
+Add support for lighttpd.
+
 

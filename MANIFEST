@@ -1,4 +1,8 @@
 README
+TODO
 ntlm_proxy.py
 pyntlm.py
 setup.py
+http_client.py
+ntlm_client.py
+test.py

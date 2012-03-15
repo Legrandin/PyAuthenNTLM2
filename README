@@ -28,7 +28,7 @@ authorization requests to the (Domain Controller or Active Directory server):
 it never has to neither see nor store the real passwords.
 
 Note that NTLMv1 is based on cryptography that by today standards is very weak.
-Ensure that your clients always use NTLMv2. PyAuthenNTLM2 handles equally well
+Ensure that your clients always use NTLMv2 [6]. PyAuthenNTLM2 handles equally well
 all the various NTLM variants (such as NTLMv2 Session, and NTLMv2).
 
 PyAuthenNTLM2 allows clients to authenticate via two schemes: NTLM or Basic.
@@ -102,6 +102,15 @@ The following options exist:
 
 Apache needs to be configured to send keep alives (directive 'KeepAlive On').
 
+For SSL-protected sites, comment out the statement:
+
+	SetEnvIf User-Agent ".*MSIE.*" \
+             nokeepalive ssl-unclean-shutdown \
+             downgrade-1.0 force-response-1.0
+
+from the default Apache virtual host, or Internet Explorer will not manage to
+make use of NTLM.
+
 Experimental
 ------------
 The [pdc]/[bdc] settings may also refer to an Active Directory server.
@@ -167,9 +176,14 @@ References
 [2] http://davenport.sourceforge.net/ntlm.html
 [3] http://search.cpan.org/~speeves/Apache2-AuthenNTLM-0.02/AuthenNTLM.pm
 [4] http://www.modpython.org
+[5] http://technet.microsoft.com/en-us/magazine/2006.08.securitywatch.aspx
+[6] http://support.microsoft.com/kb/239869
 
+<<<<<<< HEAD
 TODO
 ====
 Since mod-python is not that active anymore, port it to modwsgi.
 Add support for lighttpd.
+=======
+>>>>>>> master
 
