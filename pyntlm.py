@@ -246,36 +246,57 @@ def handle_type1(req, ntlm_message):
     return apache.HTTP_UNAUTHORIZED
 
 def check_authorization(req, proxy):
-    '''Check if an authenticated user is also authorized.
+    '''Check if a user that was already authenticated by some previous steps
+    is also authorized.
 
-    Authorization is granted when the user belongs to any of the Active Directory groups
-    specified with the 'ADGroups' setting in the Apache configuration.
-    If 'ADGroups' is not present, authorization is always granted.
+    Authorization is granted depending on the following Apache directives:
+
+    Require valid-user must always be present
+    Require user XYZ   authorizes any user named XYZ.
+    Require group WER  authorizes any user which is member of the group WER.
+                       Group membership is checked at the Active Directory
+                       server.
+    
+    Multiple users and groups can be specified on the same Require line,
+    provided they are separated by a comma.
 
     @req        The request for which authentication was successful (req.user exists).
     @proxy      The proxy that keeps membership data.
     @return     True if the user is authorized, False otherwise.
     '''
+   
+    rules = ''.join(req.requires()).strip()
+    if rules=='valid-user' or cacheGroups.has(rules, req.user):
+        return True
+    groups = []
+    for r in req.requires():
+        if r.lower().startswith("user "):
+            users = [ u.strip() for u in r[5:].split(",")]
+            if req.user in users:
+                req.log_error('PYNTLM: Authorization succeeded for user %s and URI %s.' %
+                    (req.user,req.unparsed_uri), apache.APLOG_INFO)
+                return True
+        if r.lower().startswith("group "):
+            groups += [ g.strip() for g in r[6:].split(",")]
 
-    groups = req.get_options()['ADGroups']
-    if not groups:
-        return True
-    #req.log_error('PYNTLM: %s' % str(cacheGroups._cache))
-    if cacheGroups.has(groups, req.user):
-        return True
-    try:
-        res = proxy.check_membership(req.user, [s.strip() for s in groups.split(',')])
-    except Exception, e:
-        req.log_error('PYNTLM: Unexpected error when checking membership of %s in groups %s for URI %s: %s' % (req.user,str(groups),req.unparsed_uri,str(e)))
-        return False
-    if not res:
+    req.log_error('PYNTLM: %s' % str(cacheGroups._cache))
+
+    if groups:
+        try:
+            res = proxy.check_membership(req.user, groups)
+        except Exception, e:
+            req.log_error('PYNTLM: Unexpected error when checking membership of %s in groups %s for URI %s: %s' % (req.user,str(groups),req.unparsed_uri,str(e)))
+        if res:
+            cacheGroups.add(rules, req.user)
+            req.log_error('PYNTLM: Membership check succeeded for %s in groups %s for URI %s.' %
+                (req.user,str(groups),req.unparsed_uri), apache.APLOG_INFO)
+            return True
         req.log_error('PYNTLM: Membership check failed of %s in groups %s for URI %s.' %
             (req.user,str(groups),req.unparsed_uri))
     else:
-        cacheGroups.add(groups, req.user)
-        req.log_error('PYNTLM: Membership check succeeded for %s in groups %s for URI %s.' %
-            (req.user,str(groups),req.unparsed_uri), apache.APLOG_INFO)
-    return res
+        req.log_error('PYNTLM: Authorization failed for %s and URI %s.' %
+            (req.user,req.unparsed_uri))
+    return False
 
 def handle_type3(req, ntlm_message):
     '''Handle a Type3 NTLM message. Send it to the Domain Controller

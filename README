@@ -86,16 +86,26 @@ with any request for authentication.
 The following options exist:
 
 * AuthType NTLM                     Always specify it like this.
-* require valid-user                Always specify it like this.
+
+* Require valid-user                Always specify it like this.
+
+* Require user XYZ,WTY              Grants access only to users named XYZ or WTY.
+                                    Multiple "Require user" option lines can be
+                                    specified.
+
 * AuthName [domain]                 Replace [domain] with the domain name to
                                     present to users in the pop-up dialog.
+
 * PythonAuthenHandler [pyntlm.py]   Replace [pyntlm.py] with the complete,
                                     absolute path to the pyntlm.py script.
+
 * PythonOption Domain [domain]      Replace [domain] with the Windows domain
                                     name (uppercase).
+
 * PythonOption PDC [pdc]            Replace [pdc] with the address of the
                                     Primary Domain Controller (either IP or DNS
                                     name).
+
 * PythonOption BDC [bdc]            Replace [bdc] with the address of the Backup
                                     Domain Controller (either IP or DNS name).
                                     This entry is optional.
@@ -104,7 +114,7 @@ Apache needs to be configured to send keep alives (directive 'KeepAlive On').
 
 For SSL-protected sites, comment out the statement:
 
-	SetEnvIf User-Agent ".*MSIE.*" \
+    SetEnvIf User-Agent ".*MSIE.*" \
              nokeepalive ssl-unclean-shutdown \
              downgrade-1.0 force-response-1.0
 
@@ -132,21 +142,22 @@ When using an Active Directory server, it is also possible to check if the
 user is authorized to access page. More precisely, it is possible to grant
 access only if the user is member of one group.
 
-The option 'ADGroups' in the Apache configuration can be used to pass the
-comma-separated list of groups the user must be part of. The group identifier
-is the logon name, that is, the 'sAMAccountName' attribute in Active Driectory.
+The option "Require group" can be used to pass the comma-separated list of groups
+the user must belong to. The group identifier is the logon name, that is,
+the 'sAMAccountName' attribute in Active Directory.
 
 For instance, if you specified: 
 
 <Directory /var/lib/some_directory>
-	[ ... ]
-    PythonOption ADGroups "Administrators,Power Users"
-	[ ... ]
+    [ ... ]
+    Require group Administrators,Power Users
+    [ ... ]
 </Directory>
 
-Only users that belong to Adminstrators or PowerUsers will be granted access.
+Only users that belong to Administrators or PowerUsers will be granted access.
 A user that does not belong to any of such groups is denied access, even if
-its credentials were correct.
+its credentials were correct, unless its name is included in a "Require user"
+option.
 
 Logging
 =======
