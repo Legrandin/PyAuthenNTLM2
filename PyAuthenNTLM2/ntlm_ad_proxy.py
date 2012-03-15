@@ -128,7 +128,7 @@ class LDAP_Context:
         if messageID!=self.messageID:
             raise LDAP_Parse_Exception("Unexpected MessageID: %d instead of %d" % (messageID, self.messageID))
         # BindResponse has APPLICATION IMPLICIT tag [1] for constructed type (SEQUENCE)
-        data = parsetlv('\x61', data)
+        data, controls = parsetlv('\x61', data, True)
         # LDAPResult components
         resultCode, data = parseenum(data, True)
         matchedDN, data = parseoctstr(data, True)
@@ -185,7 +185,7 @@ class LDAP_Context:
             raise LDAP_Parse_Exception("Unexpected MessageID: %d instead of %d" % (messageID, self.messageID))
         # SearchResultDone has APPLICATION IMPLICIT tag [5] for primitive type (OCTET STRING)
         if data[0]=='\x65':
-            data = parsetlv('\x65', data)
+            data, controls = parsetlv('\x65', data, True)
             resultCode, data = parseenum(data, True)
             matchedDN, data = parseoctstr(data, True)
             diagnosticMessage, data = parseoctstr(data, True)
@@ -199,7 +199,7 @@ class LDAP_Context:
         if data[0]=='\x73':
             return (False, None, {})
         # SearchResultEntry has APPLICATION IMPLICIT tag [4] for constructed type (SEQUENCE)
-        data = parsetlv('\x64', data)
+        data, controls = parsetlv('\x64', data, True)
 
         attributes = {}
         objectName, data = parseoctstr(data, True)
