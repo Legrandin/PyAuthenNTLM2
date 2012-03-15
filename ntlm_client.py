@@ -29,8 +29,8 @@ from urlparse import urlparse
 
 from Crypto.Hash import MD4, HMAC
 
-from ntlm_dc_proxy import NTLM_DC_Proxy
-from ntlm_ad_proxy import NTLM_AD_Proxy
+from PyAuthenNTLM2.ntlm_dc_proxy import NTLM_DC_Proxy
+from PyAuthenNTLM2.ntlm_ad_proxy import NTLM_AD_Proxy
 
 def tuc(s):
     return s.encode('utf-16-le')
@@ -246,17 +246,18 @@ class NTLM_Client:
 
 def print_help():
     print
-    print "Performs an NTLM authentication for user\\DOMAIN against the Domain Controller at the given address:"
-    print "ntlm_client {-u|--user} usr {-p|--password} pwd {-d|--domain} DOMAIN {-a|--address} [{-g|--group} name[,name]* ] address"
+    print "Performs an NTLM authentication for user\\DOMAIN against the server at the given address:"
+    print "ntlm_client {-u|--user} usr {-p|--password} pwd {-d|--domain} DOMAIN {-a|--address} address [{-g|--group} name[,name]* ]"
     print
-    print "Where:"
-    print "    An address starting with 'ldap://' is an URI of an Active Directory server."
+    print "    When 'address' starts with 'ldap://', it is an URI of an Active Directory server."
     print "    The URI has format ldap://serveraddres/dn"
     print "        - serveraddress is the IP or the hostname of the AD server."
     print "        - dn is the base Distinguished name to use for the LDAP search."
     print "          Special characters must be escaped (space=%20, comma=%2C, equals=%3D)"
-    print
     print "    Otherwise, the address is the IP or the hostname of a Domain Controller."
+    print
+    print "    When 'group' is present, it is a comma-separated list of group accounts the user's membership is"
+    print "    checked for. It is only applicable if 'address' is an Active Directory server."
     sys.exit(-1)
 
 if __name__ == '__main__':
@@ -295,7 +296,7 @@ if __name__ == '__main__':
     if config['address'].startswith('ldap:'):
         print "Using Active Directory (LDAP) to verify credentials."
         url = urlparse(config['address'])
-        proxy = NTLM_AD_Proxy(url.netloc, config['domain'])
+        proxy = NTLM_AD_Proxy(url.netloc, config['domain'], base=urllib.unquote(url.path)[1:])
     else:
         print "Using Domain Controller to verify credentials."
         proxy = NTLM_DC_Proxy(config['address'], config['domain'])
@@ -315,9 +316,7 @@ if __name__ == '__main__':
         
         # Group membership check
         if config['address'].startswith('ldap:') and config.has_key('group'):
-            url = urlparse(config['address'])
-            base = urllib.unquote(url.path)[1:]
-            res = proxy.check_membership(config['user'], config['group'], base)
+            res = proxy.check_membership(config['user'], config['group'])
             if res:
                 print "User belongs to at least one group."
             else:

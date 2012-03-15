@@ -21,12 +21,15 @@
 import sys
 import base64
 import time
+import urllib
 from struct import unpack
 from threading import Lock
 from binascii import hexlify
+from urlparse import urlparse
 
 from mod_python import apache
 from PyAuthenNTLM2.ntlm_dc_proxy import NTLM_DC_Proxy
+from PyAuthenNTLM2.ntlm_ad_proxy import NTLM_AD_Proxy
 
 use_basic_auth = True
 try:
@@ -96,7 +99,7 @@ class Cache:
 
 cache = Cache()
 
-def ntlm_message_version(msg):
+def ntlm_message_type(msg):
     if not msg.startswith('NTLMSSP\x00') or len(msg)<12:
         raise RuntimeError("Not a valid NTLM message: '%s'" % hexlify(msg))
     msg_type = unpack('<I', msg[8:8+4])[0]
@@ -124,7 +127,7 @@ def parse_ntlm_authenticate(msg):
         username = str(username.decode('utf-16-le'))
     return username, domain
 
-def decode_authorization(auth):
+def decode_http_authorization_header(auth):
     '''Return a tuple with the parsed content of an HTTP Authorization header
 
     In case of NTLM, the first item is 'NTLM' and the second the Type 1 challenge.
@@ -143,6 +146,11 @@ def decode_authorization(auth):
     return False
 
 def handle_unauthorized(req):
+    '''Prepare the correct HTTP headers for a 401 response.
+
+    @return     The Apache return code for 401 response.
+    '''
+
     req.err_headers_out.add('WWW-Authenticate', 'NTLM')
     if use_basic_auth:
         req.err_headers_out.add('WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
@@ -153,7 +161,7 @@ def connect_to_proxy(req, type1):
     '''Try to sequentially connect to all Domain Controllers in the list
     until one is available and can handle the NTLM transaction.
 
-    @return A tuple with a NTLM_DC_Proxy object and a NTLM challenge (Type 2).'''
+    @return A tuple with a NTLM_Proxy object and a NTLM challenge (Type 2).'''
 
     # Get configuration entries in Apache file
     try:
@@ -167,16 +175,23 @@ def connect_to_proxy(req, type1):
     for server in (pdc, bdc):
         if not server: continue
         try:
-            proxy = NTLM_DC_Proxy(server, domain)
+            url = urlparse(server)
+            if url.scheme=='ldap':
+                decoded_path =urllib.unquote(url.path)[1:]
+                req.log_error('PYTNLM: Initiating connection to Active Directory server %s (domain %s) using base DN "%s".' %
+                    (url.netloc, domain, decoded_path), apache.APLOG_INFO)
+                proxy = NTLM_AD_Proxy(url.netloc, domain, base=decoded_path)
+            else:
+                proxy = NTLM_DC_Proxy(url.netloc, domain)
             ntlm_challenge = proxy.negotiate(type1)
         except Exception, e:
-            req.log_error('PYNTLM: Error when retrieving Type 2 message from DC(%s) = %s' % (server,str(e)), apache.APLOG_CRIT)
+            req.log_error('PYNTLM: Error when retrieving Type 2 message from server(%s) = %s' % (server,str(e)), apache.APLOG_CRIT)
         if ntlm_challenge: break
         proxy.close()
     else:
         raise RuntimeError("None of the Domain Controllers are available.")
     return (proxy, ntlm_challenge)
- 
+
 def handle_type1(req, ntlm_message):
     '''Handle a Type1 NTLM message. Send it to the Domain Controller
     and get back the challenge (the Type2 NTLM message that is).
@@ -196,6 +211,30 @@ def handle_type1(req, ntlm_message):
     req.err_headers_out.add('WWW-Authenticate', "NTLM " + base64.b64encode(ntlm_challenge))
     return apache.HTTP_UNAUTHORIZED
 
+def check_authorization(req, proxy):
+    '''Check if an authenticated user is also authorized.
+
+    Authorization is granted when the user belongs to any of the Active Directory groups
+    specified with the 'ADGroups' setting in the Apache configuration.
+    If 'ADGroups' is not present, authorization is always granted.
+
+    @req        The request for which authentication was successful (req.user exists).
+    @proxy      The proxy that keeps membership data.
+    @return     True if the user is authorized, False otherwise.
+    '''
+
+    groups = req.get_options()['ADGroups']
+    if not groups:
+        return True
+    try:
+        res = proxy.check_membership(req.user, [s.strip() for s in groups.split(',')])
+    except Exception, e:
+        req.log_error('PYNTLM: Unexpected error when checking membership of %s in groups %s for URI %s: %s' % (req.user,str(groups),req.unparsed_uri,str(e)))
+        return False
+    if not res:
+        req.log_error('PYNTLM: Membership check failed of %s in groups %s for URI %s: %s' % (req.user,str(groups),req.unparsed_uri,str(e)))
+    return res
+
 def handle_type3(req, ntlm_message):
     '''Handle a Type3 NTLM message. Send it to the Domain Controller
     and get back the final authentication outcome.
@@ -209,18 +248,24 @@ def handle_type3(req, ntlm_message):
         user, domain = parse_ntlm_authenticate(ntlm_message)
         result = proxy.authenticate(ntlm_message)
     except Exception, e:
-        req.log_error('PYNTLM: Error when retrieving Type 3 message from DC = %s' % str(e), apache.APLOG_CRIT)
+        req.log_error('PYNTLM: Error when retrieving Type 3 message from server = %s' % str(e), apache.APLOG_CRIT)
         user, domain = 'invalid', 'invalid'
         result = False
-    cache.remove(req.connection.id)
     if not result:
+        cache.remove(req.connection.id)
         req.log_error('PYNTLM: User %s/%s at %s failed authentication for URI %s' % (
             domain,user,req.connection.remote_ip,req.unparsed_uri))
         return handle_unauthorized(req)
 
     req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
-    req.connection.notes.add('NTLM_AUTHORIZED',user)
     req.user = user
+    result = check_authorization(req, proxy)
+    cache.remove(req.connection.id)
+
+    if not result:
+        return apache.HTTP_FORBIDDEN
+
+    req.connection.notes.add('NTLM_AUTHORIZED',user)
     return apache.OK
     
 def handle_basic(req, user, password):
@@ -241,13 +286,20 @@ def handle_basic(req, user, password):
     client.parse_ntlm_challenge(type2)
     type3 = client.make_ntlm_authenticate()
     if not proxy.authenticate(type3):
+        proxy.close()
         req.log_error('PYNTLM: User %s/%s at %s failed Basic authentication for URI %s' % (
             domain,user,req.connection.remote_ip,req.unparsed_uri))
         return handle_unauthorized(req)
     
     req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
-    req.connection.notes.add('BASIC_AUTHORIZED', user+password)
     req.user = user
+    result = check_authorization(req, proxy)
+    proxy.close()
+
+    if not result:
+        return apache.HTTP_FORBIDDEN
+
+    req.connection.notes.add('BASIC_AUTHORIZED', user+password)
     return apache.OK
     
 def authenhandler(req):
@@ -287,7 +339,7 @@ def authenhandler(req):
     # Extract authentication data from any of the Authorization headers
     try:
         for ah in auth_headers:
-            ah_data = decode_authorization(ah)
+            ah_data = decode_http_authorization_header(ah)
             if ah_data:
                 break
     except:
@@ -312,20 +364,20 @@ def authenhandler(req):
         return handle_basic(req, ah_data[1], ah_data[2])
 
     # If we get here it means that there is an Authorization header, with an
-    # NTLM message in it. Moreover, the connection needs to be (re)authorized.
+    # NTLM message in it. Moreover, the connection needs to be (re)authenticated.
     # Most likely, the NTLM message is of:
     # - Type 1 (and there is nothing in the cache): the client wants to
-    #   authorize for the first time,
+    #   authenticate for the first time,
     # - Type 3 (and there is something in the cache): the client wants to finalize
-    #   a pending authorization request.
+    #   a pending authentication request.
     #
     # However, it could still be that there is a Type 3 and nothing in the
     # cache (the final client message was erroneously routed to a new connection),
     # or that there is a Type 1 with something in the cache (the client wants to
-    # initiate an cancel a pending authorization).
+    # initiate an cancel a pending authentication).
 
     try:
-        ntlm_version = ntlm_message_version(ah_data[1])
+        ntlm_version = ntlm_message_type(ah_data[1])
         if ntlm_version==1:
             return handle_type1(req, ah_data[1]) 
         if ntlm_version==3:

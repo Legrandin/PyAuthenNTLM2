@@ -1,5 +1,6 @@
 PyAuthenNTLM2 is a module that enables Apache to carry out authentication by
-means of the NTLM protocol and a separate Domain Controller.
+means of the NTLM protocol and a separate Domain Controller or Active
+Directory server.
 
 Introduction
 ============
@@ -14,6 +15,7 @@ The specific use case of PyAuthenNTLM2 is the following:
    supports NTLM (all browsers do nowadays).
  * Some of the users can only use Basic, not even NTLM (possibly because they
    don't use a browser).
+ * [EXPERIMENTAL] Only users that belong to certain groups are authorized.
 
 Although Kerberos (including its Microsoft variant "Integrated Windows
 Authentication") is the best option in terms of security for HTTP
@@ -22,8 +24,8 @@ better than the widespread Basic protocol and marginally better than Digest.
 With Basic, anybody can pick up your password from the messages sent to the
 server (unless you use TLS), whereas with Digest the web server needs local
 access to the actual password. With NTLM, the webserver can relay every
-authorization requests to the Domain Controller: it never has to neither see
-nor store the real passwords.
+authorization requests to the (Domain Controller or Active Directory server):
+it never has to neither see nor store the real passwords.
 
 Note that NTLMv1 is based on cryptography that by today standards is very weak.
 Ensure that your clients always use NTLMv2. PyAuthenNTLM2 handles equally well
@@ -42,6 +44,7 @@ Requirements
 Test was carried out with:
  - a server with mod-python 3.3.1, Apache 2.2, and Python 2.6. 
  - clients with Internet Explorer 7/8, Firefox 7.0, and Chrome.
+ - Windows 2003 Domain Controller and Active Directory server
 
 Installation
 ============
@@ -99,6 +102,43 @@ The following options exist:
 
 Apache needs to be configured to send keep alives (directive 'KeepAlive On').
 
+Experimental
+------------
+The [pdc]/[bdc] settings may also refer to an Active Directory server.
+The syntax becomes slightly more complex:
+
+    ldap://server[/baseDN]
+
+where 'server' is the IP or DNS name of the Active Directory server, and the
+optional 'baseDN' is the base Distinguished Name for the queries (only needed
+for authorization, see below). For instance:
+
+    ldap://10.12.13.1/DC=nasa,DC=gov
+
+or equivalently (but more in compliance to RFC4516):
+
+    ldap://10.12.13.1/DC%3Dnasa%2CDC%3Dgov
+
+When using an Active Directory server, it is also possible to check if the
+user is authorized to access page. More precisely, it is possible to grant
+access only if the user is member of one group.
+
+The option 'ADGroups' in the Apache configuration can be used to pass the
+comma-separated list of groups the user must be part of. The group identifier
+is the logon name, that is, the 'sAMAccountName' attribute in Active Driectory.
+
+For instance, if you specified: 
+
+<Directory /var/lib/some_directory>
+	[ ... ]
+    PythonOption ADGroups "Administrators,Power Users"
+	[ ... ]
+</Directory>
+
+Only users that belong to Adminstrators or PowerUsers will be granted access.
+A user that does not belong to any of such groups is denied access, even if
+its credentials were correct.
+
 Logging
 =======
 
@@ -131,6 +171,5 @@ References
 TODO
 ====
 Since mod-python is not that active anymore, port it to modwsgi.
-Extend it so that it can be used also for group authorization, where groups are defined in AD.
 Add support for lighttpd.
 

@@ -20,6 +20,9 @@
 
 import socket
 
+class NTLM_Proxy_Exception(Exception):
+    pass
+
 class NTLM_Proxy:
     """This is a class that handles one single NTLM authentication request like it was
     a domain controller. However, it is just a proxy for the real, remote DC.
@@ -44,6 +47,8 @@ class NTLM_Proxy:
 
     def _readsocket(self, length):
         """Read exactly @length bytes from the socket"""
+        if not self.socket:
+            raise NTLM_Proxy_Exception("Read operation on closed socket.")
         data = self.bufferin
         while len(data)<length:
             data += self.socket.recv(1024)
@@ -51,6 +56,8 @@ class NTLM_Proxy:
         return data
 
     def _transaction(self, msg):
+        if not self.socket:
+            raise NTLM_Proxy_Exception("Transaction on closed socket.")
         self.socket.send(msg)
         data = self._readsocket(self.proto.minimumData)
         data += self._readsocket(self.proto.getTransportLength(data))

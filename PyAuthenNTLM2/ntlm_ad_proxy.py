@@ -20,7 +20,9 @@
 
 import socket
 from gssapi import *
-from ntlm_proxy import NTLM_Proxy
+from ntlm_proxy import NTLM_Proxy, NTLM_Proxy_Exception
+
+debug = False
 
 class LDAP_Parse_Exception(Exception):
     pass
@@ -29,6 +31,48 @@ class LDAP_Context:
     # resultCode
     LDAP_Result_success             = 0
     LDAP_Result_saslBindInProgress  = 14
+
+    result_description = {
+        0 : 'success',
+        1 : 'operationsError',
+        2 : 'protocolError',
+        3 : 'timeLimitExceeded',
+        4 : 'sizeLimitExceeded',
+        5 : 'compareFalse',
+        6 : 'compareTrue',
+        7 : 'authMethodNotSupported',
+        8 : 'strongerAuthRequired',
+        10 : 'referral - wrong base DN?',
+        11 : 'adminLimitExceeded',
+        12 : 'unavailableCriticalExtension',
+        13 : 'confidentialityRequired',
+        14 : 'saslBindInProgress',
+        16 : 'noSuchAttribute',
+        17 : 'undefinedAttributeType',
+        18 : 'inappropriateMatching',
+        19 : 'constraintViolation',
+        20 : 'attributeOrValueExists',
+        21 : 'invalidAttributeSyntax',
+        32 : 'noSuchObject',
+        33 : 'aliasProblem',
+        34 : 'invalidDNSSyntax',
+        36 : 'aliasDereferencingProblem',
+        48 : 'inappropriateAuthentication',
+        49 : 'invalidCredentials',
+        50 : 'insufficientAccessRights',
+        51 : 'busy',
+        52 : 'unavailable',
+        53 : 'unwillingToPerform',
+        54 : 'loopDetect',
+        64 : 'namingViolation',
+        65 : 'objectClassViolation',
+        66 : 'notAllowedOnNonLeaf',
+        67 : 'notAllowedOnRDN',
+        68 : 'entryAlreadyExists',
+        69 : 'objectClassProhibited',
+        71 : 'affectsMultipleDSAs',
+        80 : 'other',
+    }
 
     # scope in SearchRequest
     Scope_baseObject                = 0
@@ -146,7 +190,10 @@ class LDAP_Context:
             matchedDN, data = parseoctstr(data, True)
             diagnosticMessage, data = parseoctstr(data, True)
             if resultCode:
-                print "Failed search. Code %d. Message: %s." % (resultCode, diagnosticMessage)
+                import re
+                rd = self.result_description.get(resultCode, "unknown")
+                raise NTLM_Proxy_Exception("Failed search. Code %d (%s). Message: %s." %
+                    (resultCode, rd, re.sub(r'[\x00-\x1F]','',diagnosticMessage)))
             return (True, diagnosticMessage)
         # SearchResultReference has APPLICATION IMPLICIT tag [19] for constructed type (SEQUENCE)
         if data[0]=='\x73':
@@ -176,25 +223,29 @@ class NTLM_AD_Proxy(NTLM_Proxy):
     """
     _portad = 389
 
-    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None):
+    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base=''):
+        global debug
         NTLM_Proxy.__init__(self, ipad, self._portad, domain, lambda: LDAP_Context(), socketFactory)
+        self.base = base
+        self.debug = debug
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
-    def check_membership(self, user, groups, base):
+    def check_membership(self, user, groups, base=None):
         """Check if the given user belong to ANY of the given groups.
 
         @user   The sAMAccountName attribute of the user
         @group  A list of sAMAccountName attributes (one per group)
-        @base   The basis DN for the search
+        @base   The basis DN for the search (if not specificed, the default one is used)
         @return True if the user belongs to the group, False otherwise.
         """
 
+        dn = base or self.base
         if user:
-            #print "Checking if user %s belongs to group %s (base=%s)" % (user,group,base)
-            msg = self.proto.make_search_req(base, { 'sAMAccountName':user }, ['memberOf','sAMAccountName'])
+            if self.debug: print "Checking if user %s belongs to group %s (base=%s)" % (user,groups,base)
+            msg = self.proto.make_search_req(dn, { 'sAMAccountName':user }, ['memberOf','sAMAccountName'])
         else:
-            #print "Checking if group %s is a sub-group of %s" % (group,base)
-            msg = self.proto.make_search_req(base, {}, ['memberOf','sAMAccountName'])
+            if self.debug: print "Checking if group %s is a sub-group of %s" % (groups,base)
+            msg = self.proto.make_search_req(dn, {}, ['memberOf','sAMAccountName'])
         msg = self._transaction(msg)
         result = {}
         while True:
@@ -209,7 +260,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         if not result:
             return False
         assert(len(result)==1)
-        #print "sAMAccountName:", result.values()[0]['sAMAccountName']
+        if self.debug: print "sAMAccountName:", result.values()[0]['sAMAccountName']
         for g in groups:
             if g in result.values()[0]['sAMAccountName']:
                 return True
