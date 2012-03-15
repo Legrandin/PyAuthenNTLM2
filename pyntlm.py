@@ -57,7 +57,7 @@ except ImportError:
 # Since connections may be interrupted before receiving the challenge, objects older
 # than 60 seconds are removed from cache when we have the chance.
 
-class Cache:
+class CacheConnections:
 
     def __init__(self):
         self._mutex = Lock()
@@ -97,7 +97,41 @@ class Cache:
         self._mutex.release()
         return proxy
 
-cache = Cache()
+class CacheGroups:
+
+    def __init__(self):
+        self._mutex = Lock()
+        self._cache = {}
+
+    def __len__(self):
+        return len(self._cache)
+
+    def add(self, group, user):
+        self._mutex.acquire()
+        if not self._cache.has_key(group):
+            self._cache[group]={}
+        self._cache[group][user]=int(time.time())
+        self._mutex.release()
+    
+    def clean(self):
+        now = int(time.time())
+        self._mutex.acquire()
+        old = []
+        for group, members in self._cache.items():
+            for user in members:
+                if members[user]+3*60*60<now:
+                    old.append((group,user))
+        for group, user in old:
+            del self._cache[group][user]
+        self._mutex.release()
+
+    def has(self, group, user):
+        if not self._cache.has_key(group):
+            return False
+        return self._cache[group].has_key(user)
+
+cache = CacheConnections()
+cacheGroups = CacheGroups()
 
 def ntlm_message_type(msg):
     if not msg.startswith('NTLMSSP\x00') or len(msg)<12:
@@ -226,13 +260,21 @@ def check_authorization(req, proxy):
     groups = req.get_options()['ADGroups']
     if not groups:
         return True
+    #req.log_error('PYNTLM: %s' % str(cacheGroups._cache))
+    if cacheGroups.has(groups, req.user):
+        return True
     try:
         res = proxy.check_membership(req.user, [s.strip() for s in groups.split(',')])
     except Exception, e:
         req.log_error('PYNTLM: Unexpected error when checking membership of %s in groups %s for URI %s: %s' % (req.user,str(groups),req.unparsed_uri,str(e)))
         return False
     if not res:
-        req.log_error('PYNTLM: Membership check failed of %s in groups %s for URI %s: %s' % (req.user,str(groups),req.unparsed_uri,str(e)))
+        req.log_error('PYNTLM: Membership check failed of %s in groups %s for URI %s.' %
+            (req.user,str(groups),req.unparsed_uri))
+    else:
+        cacheGroups.add(groups, req.user)
+        req.log_error('PYNTLM: Membership check succeeded for %s in groups %s for URI %s.' %
+            (req.user,str(groups),req.unparsed_uri), apache.APLOG_INFO)
     return res
 
 def handle_type3(req, ntlm_message):
