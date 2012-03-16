@@ -1,5 +1,7 @@
 TODO
 ====
 Since mod-python is not that active anymore, port it to modwsgi.
+Add support for LDAP signing.
+Add support for group authorization on Domain Controller via SAMR.
 Add support for lighttpd.
 
