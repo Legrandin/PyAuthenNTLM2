@@ -211,8 +211,9 @@ class NTLM_DC_Proxy(NTLM_Proxy):
     # Raw SMB over IP
     _portdc = 445
 
-    def __init__(self, ipdc, domain, socketFactory=socket, smbFactory=None):
+    def __init__(self, ipdc, domain, socketFactory=socket, smbFactory=None, verbose=False):
         NTLM_Proxy.__init__(self, ipdc, self._portdc, domain, lambda: SMB_Context(), socketFactory)
+        self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
       

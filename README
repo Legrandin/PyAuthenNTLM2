@@ -236,6 +236,15 @@ python ntlm_client.py -u johndoe -p xxxxx -d DOMAINX -g Administrators -a ldap:/
 User DOMAINX\johndoe was authenticated.
 User belongs to at least one group.
 
+* If you have a problem of membership with a specific user you don't have the password
+  for, you can explicit check what ntlm_client finds for that user, while authenticating
+  with another accunt:
+
+python ntlm_client.py -u otheraccount -p xxxxx -d DOMAINX -g Administrators -a ldap://10.11.12.13/DC=nasa,DC=gov -m johndoe -v
+
+  You should see plenty of messages with the various DNs of the groups the user johndoe
+  is found to be member of.
+
 Thanks
 ======
 

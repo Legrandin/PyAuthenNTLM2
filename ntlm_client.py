@@ -270,7 +270,7 @@ if __name__ == '__main__':
         print_help()
 
     try:
-        options, remain = getopt.getopt(sys.argv[1:],'hu:p:d:a:g:m:',['help', 'user=', 'password=', 'domain=', 'address=', 'group=','member='])
+        options, remain = getopt.getopt(sys.argv[1:],'hu:p:d:a:g:m:v',['help', 'user=', 'password=', 'domain=', 'address=', 'group=','member=','verbose'])
     except getopt.GetoptError, err:
         print err.msg
         print_help()
@@ -278,6 +278,7 @@ if __name__ == '__main__':
         print "Unknown option", ''.join(remain)
         print_help()
 
+    config['verbose'] = False
     for o, v in options: 
         if o in ['-h', '--help']:
             print_help()
@@ -293,6 +294,9 @@ if __name__ == '__main__':
             config['group'] = v.split(',')
         elif o in ['-m', '--member']:
             config['member'] = v
+        elif o in ['-v', '--verbose']:
+            print "Verbose mode"
+            config['verbose'] = True
 
     if len(config)<4:
         print "Too few options specified."
@@ -305,10 +309,10 @@ if __name__ == '__main__':
     if config['address'].startswith('ldap:'):
         print "Using Active Directory (LDAP) to verify credentials."
         url = urlparse(config['address'])
-        proxy = NTLM_AD_Proxy(url.netloc, config['domain'], base=urllib.unquote(url.path)[1:])
+        proxy = NTLM_AD_Proxy(url.netloc, config['domain'], base=urllib.unquote(url.path)[1:], verbose=config['verbose'])
     else:
         print "Using Domain Controller to verify credentials."
-        proxy = NTLM_DC_Proxy(config['address'], config['domain'])
+        proxy = NTLM_DC_Proxy(config['address'], config['domain'], verbose=config['verbose'])
     
     client = NTLM_Client(config['user'],config['domain'],config['password'])
 

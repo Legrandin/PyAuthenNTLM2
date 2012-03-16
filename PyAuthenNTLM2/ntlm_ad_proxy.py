@@ -22,9 +22,6 @@ import socket
 from gssapi import *
 from ntlm_proxy import NTLM_Proxy, NTLM_Proxy_Exception
 
-debug = False
-#debug = True
-
 class LDAP_Parse_Exception(Exception):
     pass
 
@@ -224,11 +221,11 @@ class NTLM_AD_Proxy(NTLM_Proxy):
     """
     _portad = 389
 
-    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base=''):
+    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base='', verbose=False):
         global debug
         NTLM_Proxy.__init__(self, ipad, self._portad, domain, lambda: LDAP_Context(), socketFactory)
         self.base = base
-        self.debug = debug
+        self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
     def check_membership(self, user, groups, base=None):
