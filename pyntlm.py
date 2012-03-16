@@ -209,14 +209,16 @@ def connect_to_proxy(req, type1):
     for server in (pdc, bdc):
         if not server: continue
         try:
-            url = urlparse(server)
-            if url.scheme=='ldap':
+            if server.startswith('ldap:'):
+                url = urlparse(server)
                 decoded_path =urllib.unquote(url.path)[1:]
                 req.log_error('PYTNLM: Initiating connection to Active Directory server %s (domain %s) using base DN "%s".' %
                     (url.netloc, domain, decoded_path), apache.APLOG_INFO)
                 proxy = NTLM_AD_Proxy(url.netloc, domain, base=decoded_path)
             else:
-                proxy = NTLM_DC_Proxy(url.netloc, domain)
+                req.log_error('PYTNLM: Initiating connection to Domain Controller server %s (domain %s).' %
+                    (server, domain), apache.APLOG_INFO)
+                proxy = NTLM_DC_Proxy(server, domain)
             ntlm_challenge = proxy.negotiate(type1)
         except Exception, e:
             req.log_error('PYNTLM: Error when retrieving Type 2 message from server(%s) = %s' % (server,str(e)), apache.APLOG_CRIT)
