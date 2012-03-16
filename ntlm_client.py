@@ -247,17 +247,20 @@ class NTLM_Client:
 def print_help():
     print
     print "Performs an NTLM authentication for user\\DOMAIN against the server at the given address:"
-    print "ntlm_client {-u|--user} usr {-p|--password} pwd {-d|--domain} DOMAIN {-a|--address} address [{-g|--group} name[,name]* ]"
+    print "ntlm_client {-u|--user} usr {-p|--password} pwd {-d|--domain} DOMAIN {-a|--address} address [{-g|--group} name[,name]* [{-m/--member member}]]"
     print
-    print "    When 'address' starts with 'ldap://', it is an URI of an Active Directory server."
+    print "    When '-a/--address' starts with 'ldap://', it is an URI of an Active Directory server."
     print "    The URI has format ldap://serveraddres/dn"
     print "        - serveraddress is the IP or the hostname of the AD server."
     print "        - dn is the base Distinguished name to use for the LDAP search."
     print "          Special characters must be escaped (space=%20, comma=%2C, equals=%3D)"
     print "    Otherwise, the address is the IP or the hostname of a Domain Controller."
     print
-    print "    When 'group' is present, it is a comma-separated list of group accounts the user's membership is"
+    print "    When '-g/--group' is present, it is a comma-separated list of group accounts the user's membership is"
     print "    checked for. It is only applicable if 'address' is an Active Directory server."
+    print
+    print "    When '-m/--member' is present, it is the name of the user to check membership for, if it's different"
+    print "    than the one specified with '-u/--user'. '-g/--group' must be present as well."
     sys.exit(-1)
 
 if __name__ == '__main__':
@@ -267,7 +270,7 @@ if __name__ == '__main__':
         print_help()
 
     try:
-        options, remain = getopt.getopt(sys.argv[1:],'hu:p:d:a:g:',['help', 'user=', 'password=', 'domain=', 'address=', 'group='])
+        options, remain = getopt.getopt(sys.argv[1:],'hu:p:d:a:g:m:',['help', 'user=', 'password=', 'domain=', 'address=', 'group=','member='])
     except getopt.GetoptError, err:
         print err.msg
         print_help()
@@ -288,9 +291,15 @@ if __name__ == '__main__':
             config['address'] = v
         elif o in ['-g', '--group']:
             config['group'] = v.split(',')
+        elif o in ['-m', '--member']:
+            config['member'] = v
 
     if len(config)<4:
         print "Too few options specified."
+        print_help()
+
+    if 'member' in config and not 'group' in config:
+        print "Option '-m/--memeber can only be specified together with -g/--group'."
         print_help()
 
     if config['address'].startswith('ldap:'):
@@ -315,12 +324,13 @@ if __name__ == '__main__':
         print "User %s\\%s was authenticated." % (config['user'], config['domain'])
         
         # Group membership check
+        member = config.get('member', config['user'])
         if config['address'].startswith('ldap:') and config.has_key('group'):
-            res = proxy.check_membership(config['user'], config['group'])
+            res = proxy.check_membership(member, config['group'])
             if res:
-                print "User belongs to at least one group."
+                print "User %s belongs to at least one group." % member
             else:
-                print "User does NOT belong to any group."
+                print "User %s does NOT belong to any group." % member
 
     else:
         print "User %s\\%s was NOT authenticated." % (config['user'], config['domain'])

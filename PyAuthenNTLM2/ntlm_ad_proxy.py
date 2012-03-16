@@ -23,6 +23,7 @@ from gssapi import *
 from ntlm_proxy import NTLM_Proxy, NTLM_Proxy_Exception
 
 debug = False
+#debug = True
 
 class LDAP_Parse_Exception(Exception):
     pass
