@@ -271,9 +271,3 @@ References
 [5] http://technet.microsoft.com/en-us/magazine/2006.08.securitywatch.aspx
 [6] http://support.microsoft.com/kb/239869
 [7] http://roadzy.blogspot.com/2011/02/finding-your-base-dn-in-active.html
-
-TODO
-====
-Since mod-python is not that active anymore, port it to modwsgi.
-Add support for lighttpd.
-

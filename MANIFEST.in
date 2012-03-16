@@ -1,0 +1,9 @@
+Changelog
+http_client.py
+ntlm_client.py
+pyntlm.py
+README
+setup.py
+#test.py
+TODO
+recursive-include PyAuthenNTLM2 *.py
