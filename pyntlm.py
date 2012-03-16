@@ -281,15 +281,15 @@ def check_authorization(req, proxy):
         if r.lower().startswith("group "):
             groups += [ g.strip() for g in r[6:].split(",")]
 
-    req.log_error('PYNTLM: %s' % str(cacheGroups._cache))
-
     if groups:
         try:
             res = proxy.check_membership(req.user, groups)
         except Exception, e:
             req.log_error('PYNTLM: Unexpected error when checking membership of %s in groups %s for URI %s: %s' % (req.user,str(groups),req.unparsed_uri,str(e)))
         if res:
+            #req.log_error('PYNTLM: Groups before %s' % str(cacheGroups._cache))
             cacheGroups.add(rules, req.user)
+            #req.log_error('PYNTLM: Groups after %s' % str(cacheGroups._cache))
             req.log_error('PYNTLM: Membership check succeeded for %s in groups %s for URI %s.' %
                 (req.user,str(groups),req.unparsed_uri), apache.APLOG_INFO)
             return True
