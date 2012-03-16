@@ -178,9 +178,11 @@ if __name__ == '__main__':
         if config['scheme']=='Basic':
             for reuse in (False, True, True, False):
                 success &= basic_request(url, config['user'], config['password'], reuse)
+                if not success: break
         else:
             for x in xrange(1,3):
                 success &= ntlm_request(url, config['user'], config['password'], config['domain'])
+                if not success: break
         if success:
             print "OK"
         else:
