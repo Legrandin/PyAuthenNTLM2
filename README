@@ -16,6 +16,7 @@ The specific use case of PyAuthenNTLM2 is the following:
  * Some of the users can only use Basic, not even NTLM (possibly because they
    don't use a browser).
  * [EXPERIMENTAL] Only users that belong to certain groups are authorized.
+   The groups are defined on the Active Directory server.
 
 Although Kerberos (including its Microsoft variant "Integrated Windows
 Authentication") is the best option in terms of security for HTTP
@@ -32,6 +33,11 @@ Ensure that your clients always use NTLMv2 [6]. PyAuthenNTLM2 handles equally we
 all the various NTLM variants (such as NTLMv2 Session, and NTLMv2).
 
 PyAuthenNTLM2 allows clients to authenticate via two schemes: NTLM or Basic.
+
+As for several other authorization modules, PyAuthenNTLM will pass the username
+to the underlying CGI application or webservice via the REMOTE_USER variable.
+The user name is the Windows logon identifier, without the domain part
+(that is, 'jdoe' and not 'DOMAIN\jdoe' or 'John Doe').
 
 Requirements
 ============
@@ -154,10 +160,30 @@ For instance, if you specified:
     [ ... ]
 </Directory>
 
-Only users that belong to Administrators or PowerUsers will be granted access.
+Only users that belong to Administrators or Power Users will be granted access.
 A user that does not belong to any of such groups is denied access, even if
 its credentials were correct, unless its name is included in a "Require user"
 option.
+
+Caching
+-------
+
+NTLM is a protocol that authenticates **TCP connections**, not the individual
+request like Basic or Digest. PyAuthenNTLM does not cache successful
+autentications. Every time a new connection is established, you will see a query
+to the Domain Controller or Active Directory from Apache. Browsers will
+typically open several connections in parallel. Additionally, some browsers
+may also trigger re-autentication within an established connection (e.g. Internet
+Explorer for POST requests).
+
+However, at the client side, browsers will do cache NTLM credentials, which
+won't be asked again to ther user after the first time (which is the whole
+point of Single Sign On!).
+
+PyAuthenNTLM2 will cache positive group membership for 3 hours. That means that
+if you remove a user from a group, such user will still be able to access
+for up to 3 hours, unless you restart Apache. On the other hand, if you **add**
+the user to a group, access should be granted immediately.
 
 Logging
 =======
