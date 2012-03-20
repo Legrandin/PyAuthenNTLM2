@@ -18,6 +18,16 @@ The specific use case of PyAuthenNTLM2 is the following:
  * [EXPERIMENTAL] Only users that belong to certain groups are authorized.
    The groups are defined on the Active Directory server.
 
+PyAuthenNTLM2 allows clients to authenticate via two schemes: NTLM or Basic.
+
+As for several other authorization modules, PyAuthenNTLM will pass the username
+to the underlying CGI application or webservice via the REMOTE_USER variable.
+The user name is the Windows logon identifier, without the domain part
+(that is, 'jdoe' and not 'DOMAIN\jdoe' or 'John Doe').
+
+Security
+--------
+
 Although Kerberos (including its Microsoft variant "Integrated Windows
 Authentication") is the best option in terms of security for HTTP
 authentication, the venerable NTLM protocol is still a good compromise, much
@@ -28,16 +38,42 @@ access to the actual password. With NTLM, the webserver can relay every
 authorization requests to the (Domain Controller or Active Directory server):
 it never has to neither see nor store the real passwords.
 
-Note that NTLMv1 is based on cryptography that by today standards is very weak.
-Ensure that your clients always use NTLMv2 [6]. PyAuthenNTLM2 handles equally well
-all the various NTLM variants (such as NTLMv2 Session, and NTLMv2).
+A typical message flow is the following. First, the server (Apache)
+refuses any request on a new connection:
 
-PyAuthenNTLM2 allows clients to authenticate via two schemes: NTLM or Basic.
+Client ----[GET]---> Apache
+Client <---[401]---- Apache , WWW-Authenticate: NTLM
 
-As for several other authorization modules, PyAuthenNTLM will pass the username
-to the underlying CGI application or webservice via the REMOTE_USER variable.
-The user name is the Windows logon identifier, without the domain part
-(that is, 'jdoe' and not 'DOMAIN\jdoe' or 'John Doe').
+The client crafts a first NTLM message to negotiate the authentication
+parameters. Such message (Type 1) is relayed straight to the Domain Controller:
+
+Client ----[GET]---> Apache , Authorization: TlRMT... (Type 1 message)
+                     Apache ----[Type 1]---> DC
+
+The Domain Controller generates a random challenge, completes the negotiation,
+and sends the message. The message (Type 2) is relayed to the client:
+
+                     Apache <---[Type 2]---- DC
+Client <---[401]---- Server , WWW-Authenticate: NTLM TlRMT... (Type 2 message)
+
+The client presents the popup dialog to the user to acquire the credentials.
+The password is only used to encrypt the challenge. The resulting message
+(Type 3) is relayed to the Domain Controller, which will communicate to the
+server if the user is autentic or not:
+
+Client ----[GET]---> Apache , Authorization: TlRMT... (Type 3 message)
+                     Apache ----[Type 3]---> DC
+                     Apache <---[Result]---- DC
+Client <---[200]---- Apache
+
+The password is never disclosed by the client. However, several versions of
+NTLM exist. NTLMv1 is based on cryptography that by today standards is very
+weak. That means that the password can be still brute forced from the
+encrypted challenge. In order to avoid that, ensure that your clients
+always use NTLMv2 [6].
+
+PyAuthenNTLM2 handles equally well all the various NTLM variants (such as
+NTLMv2 Session, and NTLMv2).
 
 Requirements
 ============
