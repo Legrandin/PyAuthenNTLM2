@@ -228,7 +228,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
-    def check_membership(self, user, groups, base=None):
+    def check_membership(self, user, groups, base=None, tabs=0):
         """Check if the given user belong to ANY of the given groups.
 
         @user   The sAMAccountName attribute of the user
@@ -239,12 +239,13 @@ class NTLM_AD_Proxy(NTLM_Proxy):
 
         dn = base or self.base
         if user:
-            if self.debug: print "Checking if user %s belongs to group %s (base=%s)" % (user,groups,base)
+            if self.debug: print '\t'*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,base)
             msg = self.proto.make_search_req(dn, { 'sAMAccountName':user }, ['memberOf','sAMAccountName'])
         else:
-            if self.debug: print "Checking if group %s is a sub-group of %s" % (groups,base)
+            if self.debug: print '\t'*tabs + "Checking if group %s is a sub-group of %s" % (groups,base)
             msg = self.proto.make_search_req(dn, {}, ['memberOf','sAMAccountName'])
         msg = self._transaction(msg)
+        
         result = {}
         while True:
             resp = self.proto.parse_search_resp(msg)
@@ -255,16 +256,19 @@ class NTLM_AD_Proxy(NTLM_Proxy):
             if resp[1]:
                 result[resp[1]] = resp[2]
             msg = self._transaction('')
-        if not result:
-            return False
-        assert(len(result)==1)
-        if self.debug: print "sAMAccountName:", result.values()[0]['sAMAccountName']
-        for g in groups:
-            if g in result.values()[0]['sAMAccountName']:
-                return True
-        # Cycle through all the DNs of the groups this user/group belongs to
-        topgroups = result.values()[0].get('memberOf', {})
-        for x in topgroups:
-            if self.check_membership(None,groups,x):
-                return True
+        
+        if result:
+            assert(len(result)==1)
+            if self.debug: print '\t'*tabs + "Found entry sAMAccountName:", result.values()[0]['sAMAccountName']
+            for g in groups:
+                if g in result.values()[0]['sAMAccountName']:
+                 return True
+            # Cycle through all the DNs of the groups this user/group belongs to
+            topgroups = result.values()[0].get('memberOf', {})
+            for x in topgroups:
+                if self.check_membership(None,groups,x, tabs+1):
+                    if self.debug: print '\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"yield a match."
+                    return True
+
+        if self.debug: print '\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"did not  yield any match."
         return False
