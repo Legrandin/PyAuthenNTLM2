@@ -135,22 +135,22 @@ with any request for authentication.
 The following options exist:
 
 =====================================  ======
-Inputs                                 Description
+Apache option                          Description
 =====================================  ======
 AuthType NTLM                          Always specify it like this.  
 Require valid-user                     Always specify it like this.
 Require user XYZ,WTY                   | Grants access only to users named XYZ or WTY.
                                        | Multiple "Require user" option lines can be specified.
-AuthName `[domain]`                      Replace `domain` with the domain name to present to
-                                         users in the pop-up dialog.
-PythonAuthenHandler `[pyntlm|path]`    Use simply `pyntlm`, unless the actual `pyntlm.py`
-                                       is not in the search python of the mod-python
+AuthName *domain*                      Replace *domain* with the domain name to present to
+                                       users in the pop-up dialog.
+PythonAuthenHandler *pyntlm|path*      Use simply *pyntlm*, unless the actual `pyntlm.py` script
+                                       is not in the search path for python for the mod-python
                                        interpreter. In that case, specify the complete file
                                        name (with absolute path) to the script.
-PythonOption Domain `[domain]`         Replace [domain] with the Windows domain name (uppercase).
-PythonOption PDC `[pdc]`               Replace `[pdc]` with the address of the Primary
+PythonOption Domain *domain*           Replace *domain* with the Windows domain name (uppercase).
+PythonOption PDC *pdc*                 Replace *pdc* with the address of the Primary
                                        Domain Controller (either IP or DNS name).
-PythonOption BDC `[bdc]`               Replace `[bdc]` with the address of the Backup
+PythonOption BDC *bdc*                 Replace *bdc* with the address of the Backup
                                        Domain Controller (either IP or DNS name).
                                        This entry is optional.
 =====================================  ======
@@ -204,7 +204,7 @@ For instance, if you specified: ::
  </Directory>
 
 Only users that belong to ``Administrators`` or ``Power Users`` will be granted access.
-If the user belonged to a sub-group of `Power Users` called
+If the user belonged to a sub-group of ``Power Users`` called
 ``Super Power Users``, they would pass the check too.
 A user that does not belong to any of such groups is denied access, even if
 its credentials were correct, unless its name is included in a ``Require user``
@@ -214,8 +214,10 @@ Caching
 -------
 
 NTLM is a protocol that authenticates **TCP connections**, not the individual
-request like Basic or Digest. PyAuthenNTLM2 does not cache successful
-autentications. Every time a new connection is established, you will see a query
+request like Basic or Digest.
+
+PyAuthenNTLM2 does not cache successful autentications.
+Every time a new connection is established, you will see a query
 to the Domain Controller or Active Directory from Apache. Browsers will
 typically open several connections in parallel. Additionally, some browsers
 may also trigger re-autentication within an established connection (e.g. Internet
@@ -241,7 +243,7 @@ Troubleshooting
 Check list:
 
 * Restart Apache each time you modify its configuration.
-* Ensure that KeepAlive is On.
+* Ensure that ``KeepAlive`` is ``On``.
 * Verify with various browser brands and versions, not just with one.
 * If use SSL and cannot access using Internet Explorer but other browsers work,
   ensure that the ``User-Agent MSIE`` setting (see Usage above) is commented out
