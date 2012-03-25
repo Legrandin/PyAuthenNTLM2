@@ -1,9 +1,4 @@
-Changelog
-http_client.py
-ntlm_client.py
-pyntlm.py
-README
-setup.py
+include Changelog LICENSE.txt README.rst TODO
+include http_client.py ntlm_client.py pyntlm.py setup.py
 #test.py
-TODO
 recursive-include PyAuthenNTLM2 *.py

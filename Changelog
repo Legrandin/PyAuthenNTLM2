@@ -1,11 +1,12 @@
 == Changelog
 
--- Version 2.2, 16 March 2012
+-- Version 2.2, 25 March 2012
 * Added support for Active Directory.
 * Added support for user-based authorization.
 * Added (experimental) support for group-based authorization (AD only).
-* Re-arranged code in PyAuthNTLM2 package.
-* Added Troubleshooting section to README.
+* Rearranged all code in a package (PyAuthNTLM2).
+* Rearranged README in reStructuredText format (README.rst).
+* Added Troubleshooting section to README.rst .
 
 -- Version 2.1, 6 March 2012
 * Added support for Basic authentication (thanks gmazzo!).

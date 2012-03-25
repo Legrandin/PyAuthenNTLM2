@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(  name='PyAuthenNTLM2',
         description='PyAuthenNTLM2 is a pure Python module that enables Apache to carry out authentication via NTLM and an external Domain Controller or Active Directory server.',
-        version="2.2rc1",
+        version="2.2",
         author='Legrandin',
         author_email='gooksankoo@hoiptorrow.mailexpire.com',
         url='https://github.com/Legrandin/PyAuthenNTLM2',
