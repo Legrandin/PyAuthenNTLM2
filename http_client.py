@@ -24,7 +24,7 @@ import getopt
 import base64
 from ntlm_client import NTLM_Client
 import httplib
-import urlparse
+from PyAuthentNTLM2 import urlparse
 
 def print_help():
     print
@@ -37,12 +37,24 @@ def print_help():
 headers = {}
 conn = None
 
+def http_url_to_hostport(url):
+    url_parsed = urlparse(url)
+    if not url_parsed:
+        return False
+    (scheme, host, port, path) = url_parsed
+    if scheme and scheme != 'http':
+        return False
+    hostport = host
+    if port:
+        hostport += ':' + str(port)
+    return hostport
+
 def basic_request(url, user, password, reuse=False):
     global conn, headers
 
-    if not url.startswith('http'):
-        url = '//' + url
-    (scheme, hostport, path, params, query, frag ) = urlparse.urlparse(url)
+    hostport = http_url_to_hostport(url)
+    if not hostport:
+        return False
 
     if conn and not reuse:
         conn.close()
@@ -84,9 +96,9 @@ def basic_request(url, user, password, reuse=False):
 
 def ntlm_request(url, user, password, domain):
     
-    if not url.startswith('http'):
-        url = '//' + url
-    (scheme, hostport, path, params, query, frag ) = urlparse.urlparse(url)
+    hostport = http_url_to_hostport(url)
+    if not hostport:
+        return False
 
     conn = httplib.HTTPConnection(hostport)
 

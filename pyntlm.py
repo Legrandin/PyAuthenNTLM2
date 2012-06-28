@@ -25,9 +25,10 @@ import urllib
 from struct import unpack
 from threading import Lock
 from binascii import hexlify
-from urlparse import urlparse
 
 from mod_python import apache
+
+from PyAuthenNTLM2.urlparse import urlparse
 from PyAuthenNTLM2.ntlm_dc_proxy import NTLM_DC_Proxy
 from PyAuthenNTLM2.ntlm_ad_proxy import NTLM_AD_Proxy
 
@@ -211,10 +212,10 @@ def connect_to_proxy(req, type1):
         try:
             if server.startswith('ldap:'):
                 url = urlparse(server)
-                decoded_path =urllib.unquote(url.path)[1:]
+                decoded_path = urllib.unquote(url[3])[1:]
                 req.log_error('PYTNLM: Initiating connection to Active Directory server %s (domain %s) using base DN "%s".' %
-                    (url.netloc, domain, decoded_path), apache.APLOG_INFO)
-                proxy = NTLM_AD_Proxy(url.netloc, domain, base=decoded_path)
+                    (url[1], domain, decoded_path), apache.APLOG_INFO)
+                proxy = NTLM_AD_Proxy(url[1], domain, base=decoded_path)
             else:
                 req.log_error('PYTNLM: Initiating connection to Domain Controller server %s (domain %s).' %
                     (server, domain), apache.APLOG_INFO)

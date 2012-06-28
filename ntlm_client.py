@@ -25,10 +25,10 @@ import urllib
 
 from struct import pack, unpack
 from binascii import hexlify, unhexlify
-from urlparse import urlparse
 
 from Crypto.Hash import MD4, HMAC
 
+from PyAuthenNTLM2.urlparse import urlparse
 from PyAuthenNTLM2.ntlm_dc_proxy import NTLM_DC_Proxy
 from PyAuthenNTLM2.ntlm_ad_proxy import NTLM_AD_Proxy
 
@@ -309,7 +309,10 @@ if __name__ == '__main__':
     if config['address'].startswith('ldap:'):
         print "Using Active Directory (LDAP) to verify credentials."
         url = urlparse(config['address'])
-        proxy = NTLM_AD_Proxy(url.netloc, config['domain'], base=urllib.unquote(url.path)[1:], verbose=config['verbose'])
+        if not url:
+            print "Wrong URL"
+            print_help()
+        proxy = NTLM_AD_Proxy(url[1], config['domain'], base=urllib.unquote(url[3])[1:], verbose=config['verbose'])
     else:
         print "Using Domain Controller to verify credentials."
         proxy = NTLM_DC_Proxy(config['address'], config['domain'], verbose=config['verbose'])
