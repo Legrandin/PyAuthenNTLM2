@@ -26,7 +26,7 @@ def urlparse(url):
     The 1st item in the returned list is the scheme (e.g. 'https'). It is optional.
     The 2nd item is the hostname (e.g. 'www.google.com'). It is mandatory.
     The 2nd item is the port (e.g. 8080). It is optional.
-    The 3rd item is the path (E.g. '/index.htlm'). It is optional.
+    The 3rd item is the path and search components (E.g. '/index.htlm'). It is optional.
 
     >>> urlparse("www.google.com")
     [None, 'www.google.com', None, '']
@@ -39,9 +39,12 @@ def urlparse(url):
 
     >>> urlparse("www.google.com/index.html")
     [None, 'www.google.com', None, '/index.html']
+
+    >>> urlparse("www.google.com/in%20-dex.html?client=x&channel=4")
+    [None, 'www.google.com', None, '/in%20-dex.html?client=x&channel=4']
     """
 
-    sobj = re.search(r"((\w+):\/\/)?([^:\/\s]+)(:(\d+))?((\/[\w\.]+)*)?", url)
+    sobj = re.search(r"((\w+):\/\/)?([^:\/\s]+)(:(\d+))?((\/[\w?&=$_@\.,%+-]+)*)?", url)
     if not sobj:
         return None
     ret = [sobj.group(i) for i in [2,3,5,6]]
