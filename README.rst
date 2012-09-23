@@ -338,5 +338,5 @@ Thanks
 Contacts
 ========
 
-Send an email to Legrandin <gooksankoo@hoiptorrow.mailexpire.com> or drop a
+Send an email to Legrandin <helderijs@gmail.com> or drop a
 message at https://github.com/Legrandin/PyAuthenNTLM2.
