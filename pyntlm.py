@@ -353,7 +353,7 @@ def handle_basic(req, user, password):
     if not proxy.authenticate(type3):
         proxy.close()
         req.log_error('PYNTLM: User %s/%s at %s failed Basic authentication for URI %s' % (
-            domain,user,req.connection.remote_ip,req.unparsed_uri))
+            user,domain,req.connection.remote_ip,req.unparsed_uri))
         return handle_unauthorized(req)
     
     req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
