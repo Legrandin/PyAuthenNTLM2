@@ -98,7 +98,7 @@ Installation
 ============
 ::
 
- python setup.py install
+ python setup.py install -f
 
 Usage
 =====
