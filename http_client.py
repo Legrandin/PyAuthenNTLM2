@@ -22,7 +22,7 @@ import sys
 import time
 import getopt
 import base64
-from ntlm_client import NTLM_Client
+from PyAuthenNTLM2.ntlm_client import NTLM_Client
 import httplib
 import urlparse
 

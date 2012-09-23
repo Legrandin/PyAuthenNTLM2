@@ -17,4 +17,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 
-__all__ = [ "ntlm_dc_proxy", "ntlm_ad_proxy" ]
+__all__ = [ "ntlm_dc_proxy", "ntlm_ad_proxy", "ntlm_client" ]

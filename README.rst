@@ -267,11 +267,11 @@ Check list:
   at least if you use a DC. Use the ntlm_client.py utility with the same
   settings from the Apache configuration: ::
 
-   python ntlm_client.py -u johndoe -p xxxxx -d DOMAINX -a 10.11.12.13 
+   python PyAuthenNTLM2/ntlm_client.py -u johndoe -p xxxxx -d DOMAINX -a 10.11.12.13 
 
   If you use an Active Directory server: ::
 
-   python ntlm_client.py -u johndoe -p xxxxx -d DOMAINX -a ldap://10.11.12.13 
+   python PyAuthenNTLM2/ntlm_client.py -u johndoe -p xxxxx -d DOMAINX -a ldap://10.11.12.13 
 
   You should see the message: ::
 
@@ -302,7 +302,7 @@ Check list:
   Directory server. Use the ntlm_client.py utility with the same settings
   from the Apache configuration: ::
 
-   python ntlm_client.py -u johndoe -p xxxxx -d DOMAINX -g Administrators -a ldap://10.11.12.13/DC=nasa,DC=gov
+   python PyAuthenNTLM2/ntlm_client.py -u johndoe -p xxxxx -d DOMAINX -g Administrators -a ldap://10.11.12.13/DC=nasa,DC=gov
 
   You should see both 2 messages: ::
 
@@ -313,7 +313,7 @@ Check list:
   for, you can explicit check what ntlm_client finds for that user, while authenticating
   with another accunt: ::
 
-   python ntlm_client.py -u otheraccount -p xxxxx -d DOMAINX -g Administrators -a ldap://10.11.12.13/DC=nasa,DC=gov -m johndoe -v
+   python PyAuthenNTLM2/ntlm_client.py -u otheraccount -p xxxxx -d DOMAINX -g Administrators -a ldap://10.11.12.13/DC=nasa,DC=gov -m johndoe -v
 
   You should see plenty of messages with the various DNs of the groups the user ``johndoe``
   is found to be member of.

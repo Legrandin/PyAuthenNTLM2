@@ -33,7 +33,7 @@ from PyAuthenNTLM2.ntlm_ad_proxy import NTLM_AD_Proxy
 
 use_basic_auth = True
 try:
-    from ntlm_client import NTLM_Client
+    from PyAuthenNTLM2.ntlm_client import NTLM_Client
 except ImportError:
     use_basic_auth = False
 
