@@ -433,7 +433,8 @@ def authenhandler(req):
         if userpwd:
             if userpwd != ah_data[1]+ah_data[2]:
                 return handle_unauthorized(req)
-            req.user = ah_data[1]
+            domain = req.get_options().get('Domain', req.auth_name())
+            set_remote_user(req, ah_data[1], domain)
             return apache.OK
         # Connection was not authenticated before
         return handle_basic(req, ah_data[1], ah_data[2])
