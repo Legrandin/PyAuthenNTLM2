@@ -341,7 +341,7 @@ def handle_type3(req, ntlm_message):
     if not result:
         return apache.HTTP_FORBIDDEN
 
-    req.connection.notes.add('NTLM_AUTHORIZED',user)
+    req.connection.notes.add('NTLM_AUTHORIZED',req.user)
     return apache.OK
     
 def handle_basic(req, user, password):
