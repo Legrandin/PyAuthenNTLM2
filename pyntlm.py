@@ -318,8 +318,8 @@ def handle_type3(req, ntlm_message):
         result = False
     if not result:
         cache.remove(req.connection.id)
-        req.log_error('PYNTLM: User %s/%s at %s failed authentication for URI %s' % (
-            domain,user,req.connection.remote_ip,req.unparsed_uri))
+        req.log_error('PYNTLM: User %s/%s authentication for URI %s' % (
+            domain,user,req.unparsed_uri))
         return handle_unauthorized(req)
 
     req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
@@ -352,8 +352,8 @@ def handle_basic(req, user, password):
     type3 = client.make_ntlm_authenticate()
     if not proxy.authenticate(type3):
         proxy.close()
-        req.log_error('PYNTLM: User %s/%s at %s failed Basic authentication for URI %s' % (
-            user,domain,req.connection.remote_ip,req.unparsed_uri))
+        req.log_error('PYNTLM: User %s/%s failed Basic authentication for URI %s' % (
+            user,domain,req.unparsed_uri))
         return handle_unauthorized(req)
     
     req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
@@ -369,8 +369,8 @@ def handle_basic(req, user, password):
     
 def authenhandler(req):
     '''The request handler called by mod_python in the authentication phase.'''
-    req.log_error("PYNTLM: Handling connection 0x%X from address %s for %s URI %s. %d entries in connection cache." % (
-        req.connection.id, req.connection.remote_ip,req.method,req.unparsed_uri,len(cache)), apache.APLOG_INFO)
+    req.log_error("PYNTLM: Handling connection 0x%X for %s URI %s. %d entries in connection cache." % (
+        req.connection.id, req.method,req.unparsed_uri,len(cache)), apache.APLOG_INFO)
 
     # Extract Authorization header, as a list (if present)
     auth_headers = req.headers_in.get('Authorization', [])
@@ -411,8 +411,7 @@ def authenhandler(req):
         ah_data = False
     
     if not ah_data:
-        req.log_error('Error when parsing Authorization header from address %s and URI %s' % (
-        req.connection.remote_ip,req.unparsed_uri), apache.APLOG_ERR)
+        req.log_error('Error when parsing Authorization header for URI %s' % req.unparsed_uri, apache.APLOG_ERR)
         return apache.HTTP_BAD_REQUEST
 
     if ah_data[0]=='Basic':
@@ -448,13 +447,13 @@ def authenhandler(req):
         if ntlm_version==3:
             if cache.has_key(req.connection.id):
                 return handle_type3(req, ah_data[1])
-            req.log_error('Unexpected NTLM message Type 3 in new connection from address %s and URI %s' %
-                (req.connection.remote_ip,req.unparsed_uri), apache.APLOG_INFO)
+            req.log_error('Unexpected NTLM message Type 3 in new connection for URI %s' %
+                (req.unparsed_uri), apache.APLOG_INFO)
             return handle_unauthorized(req)
         error = 'Type 2 message in client request'
     except Exception, e:
         error = str(e)
-    req.log_error('Incorrect NTLM message in Authorization header from address %s and URI %s: %s' %
-            (req.connection.remote_ip,req.unparsed_uri,error), apache.APLOG_ERR)
+    req.log_error('Incorrect NTLM message in Authorization header for URI %s: %s' %
+            (req.unparsed_uri,error), apache.APLOG_ERR)
     return apache.HTTP_BAD_REQUEST
 
