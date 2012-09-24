@@ -161,6 +161,13 @@ def parse_ntlm_authenticate(msg):
         username = str(username.decode('utf-16-le'))
     return username, domain
 
+def set_remote_user(req, username, domain):
+    format = req.get_options().get('NameFmt', 'SAM').lower()
+    if format=='logon':
+        req.user = domain + '\\' + username
+    else:
+        req.user = username
+
 def decode_http_authorization_header(auth):
     '''Return a tuple with the parsed content of an HTTP Authorization header
 
@@ -247,7 +254,7 @@ def handle_type1(req, ntlm_message):
     req.err_headers_out.add('WWW-Authenticate', "NTLM " + base64.b64encode(ntlm_challenge))
     return apache.HTTP_UNAUTHORIZED
 
-def check_authorization(req, proxy):
+def check_authorization(req, username, proxy):
     '''Check if a user that was already authenticated by some previous steps
     is also authorized.
 
@@ -262,42 +269,44 @@ def check_authorization(req, proxy):
     Multiple users and groups can be specified on the same Require line,
     provided they are separated by a comma.
 
-    @req        The request for which authentication was successful (req.user exists).
+    @req        The request for which authentication was successful.
+    @username   Name of the user that has already successfully authenticated (it exists).
+                It contains no domain parts.
     @proxy      The proxy that keeps membership data.
     @return     True if the user is authorized, False otherwise.
     '''
    
     rules = ''.join(req.requires()).strip()
-    if rules=='valid-user' or cacheGroups.has(rules, req.user):
+    if rules=='valid-user' or cacheGroups.has(rules, username):
         return True
     groups = []
     for r in req.requires():
         if r.lower().startswith("user "):
             users = [ u.strip() for u in r[5:].split(",")]
-            if req.user in users:
+            if username in users:
                 req.log_error('PYNTLM: Authorization succeeded for user %s and URI %s.' %
-                    (req.user,req.unparsed_uri), apache.APLOG_INFO)
+                    (username,req.unparsed_uri), apache.APLOG_INFO)
                 return True
         if r.lower().startswith("group "):
             groups += [ g.strip() for g in r[6:].split(",")]
 
     if groups:
         try:
-            res = proxy.check_membership(req.user, groups)
+            res = proxy.check_membership(username, groups)
         except Exception, e:
-            req.log_error('PYNTLM: Unexpected error when checking membership of %s in groups %s for URI %s: %s' % (req.user,str(groups),req.unparsed_uri,str(e)))
+            req.log_error('PYNTLM: Unexpected error when checking membership of %s in groups %s for URI %s: %s' % (username,str(groups),req.unparsed_uri,str(e)))
         if res:
             #req.log_error('PYNTLM: Groups before %s' % str(cacheGroups._cache))
-            cacheGroups.add(rules, req.user)
+            cacheGroups.add(rules, username)
             #req.log_error('PYNTLM: Groups after %s' % str(cacheGroups._cache))
             req.log_error('PYNTLM: Membership check succeeded for %s in groups %s for URI %s.' %
-                (req.user,str(groups),req.unparsed_uri), apache.APLOG_INFO)
+                (username,str(groups),req.unparsed_uri), apache.APLOG_INFO)
             return True
         req.log_error('PYNTLM: Membership check failed of %s in groups %s for URI %s.' %
-            (req.user,str(groups),req.unparsed_uri))
+            (username,str(groups),req.unparsed_uri))
     else:
         req.log_error('PYNTLM: Authorization failed for %s and URI %s.' %
-            (req.user,req.unparsed_uri))
+            (username,req.unparsed_uri))
     return False
 
 def handle_type3(req, ntlm_message):
@@ -311,6 +320,8 @@ def handle_type3(req, ntlm_message):
     proxy = cache.get_proxy(req.connection.id)
     try:
         user, domain = parse_ntlm_authenticate(ntlm_message)
+        if not domain:
+            domain = req.get_options().get('Domain', req.auth_name())
         result = proxy.authenticate(ntlm_message)
     except Exception, e:
         req.log_error('PYNTLM: Error when retrieving Type 3 message from server = %s' % str(e), apache.APLOG_CRIT)
@@ -323,8 +334,8 @@ def handle_type3(req, ntlm_message):
         return handle_unauthorized(req)
 
     req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
-    req.user = user
-    result = check_authorization(req, proxy)
+    set_remote_user(req, user, domain)
+    result = check_authorization(req, user, proxy)
     cache.remove(req.connection.id)
 
     if not result:
@@ -357,8 +368,8 @@ def handle_basic(req, user, password):
         return handle_unauthorized(req)
     
     req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
-    req.user = user
-    result = check_authorization(req, proxy)
+    set_remote_user(req, user, domain)
+    result = check_authorization(req, user, proxy)
     proxy.close()
 
     if not result:

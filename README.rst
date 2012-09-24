@@ -153,6 +153,9 @@ PythonOption PDC *pdc*                 Replace *pdc* with the address of the Pri
 PythonOption BDC *bdc*                 Replace *bdc* with the address of the Backup
                                        Domain Controller (either IP or DNS name).
                                        This entry is optional.
+PythonOption NameFmt SAM|LogOn         Set REMOTE_USER to the user name only (SAM) or to the
+                                       legacy Logon format (domain\username).
+                                       This entry is optional. SAM is the default.
 =====================================  ======
 
 Apache needs to be configured to send keep alives (directive ``KeepAlive On``).
