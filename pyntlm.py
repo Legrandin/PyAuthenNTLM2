@@ -191,12 +191,12 @@ def handle_unauthorized(req):
 
     @return     The Apache return code for 401 response.
     '''
-
-    req.err_headers_out.add('WWW-Authenticate', 'NTLM')
-    if use_basic_auth:
+    proxy_mode = req.get_options().get('WebProxyMode','off').lower() == 'on';
+    req.err_headers_out.add('Proxy-Authenticate' if proxy_mode else 'WWW-Authenticate', 'NTLM')
+    if use_basic_auth:        
         req.err_headers_out.add('WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
     req.err_headers_out.add('Connection', 'close')
-    return apache.HTTP_UNAUTHORIZED
+    return apache.HTTP_PROXY_AUTHENTICATION_REQUIRED if proxy_mode else apache.HTTP_UNAUTHORIZED
 
 def connect_to_proxy(req, type1):
     '''Try to sequentially connect to all Domain Controllers in the list
@@ -250,9 +250,11 @@ def handle_type1(req, ntlm_message):
     except Exception, e:
         return apache.HTTP_INTERNAL_SERVER_ERROR
 
+    proxy_mode = req.get_options().get('WebProxyMode','OFF').lower() == 'on';
+
     cache.add(req.connection.id, proxy)
-    req.err_headers_out.add('WWW-Authenticate', "NTLM " + base64.b64encode(ntlm_challenge))
-    return apache.HTTP_UNAUTHORIZED
+    req.err_headers_out.add('Proxy-Authenticate' if proxy_mode else 'WWW-Authenticate', "NTLM " + base64.b64encode(ntlm_challenge))
+    return apache.HTTP_PROXY_AUTHENTICATION_REQUIRED if proxy_mode else apache.HTTP_UNAUTHORIZED
 
 def check_authorization(req, username, proxy):
     '''Check if a user that was already authenticated by some previous steps
@@ -384,7 +386,8 @@ def authenhandler(req):
         req.connection.id, req.method,req.unparsed_uri,len(cache)), apache.APLOG_INFO)
 
     # Extract Authorization header, as a list (if present)
-    auth_headers = req.headers_in.get('Authorization', [])
+    proxy_mode = req.get_options().get('WebProxyMode','OFF').lower() == 'on';
+    auth_headers = req.headers_in.get('Proxy-Authorization' if proxy_mode else 'Authorization', [])
     if not isinstance(auth_headers, list):
         auth_headers = [ auth_headers ]
 
