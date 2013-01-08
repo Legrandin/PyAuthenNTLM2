@@ -194,7 +194,7 @@ def handle_unauthorized(req):
     proxy_mode = req.get_options().get('WebProxyMode','off').lower() == 'on';
     req.err_headers_out.add('Proxy-Authenticate' if proxy_mode else 'WWW-Authenticate', 'NTLM')
     if use_basic_auth:        
-        req.err_headers_out.add('WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
+        req.err_headers_out.add('Proxy-Authenticate' if proxy_mode else 'WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
     req.err_headers_out.add('Connection', 'close')
     return apache.HTTP_PROXY_AUTHENTICATION_REQUIRED if proxy_mode else apache.HTTP_UNAUTHORIZED
 
