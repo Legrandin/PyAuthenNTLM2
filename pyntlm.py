@@ -167,6 +167,12 @@ def set_remote_user(req, username, domain):
         req.user = domain + '\\' + username
     else:
         req.user = username
+    namecase = req.get_options().get('NameCase', 'ignore').lower()
+    if namecase == 'lower':
+        req.user = req.user.lower()
+    elif namecase == 'upper':
+        req.user = req.user.upper()
+    
 
 def decode_http_authorization_header(auth):
     '''Return a tuple with the parsed content of an HTTP Authorization header
