@@ -167,6 +167,12 @@ def set_remote_user(req, username, domain):
         req.user = domain + '\\' + username
     else:
         req.user = username
+    namecase = req.get_options().get('NameCase', 'ignore').lower()
+    if namecase == 'lower':
+        req.user = req.user.lower()
+    elif namecase == 'upper':
+        req.user = req.user.upper()
+    
 
 def decode_http_authorization_header(auth):
     '''Return a tuple with the parsed content of an HTTP Authorization header
@@ -333,7 +339,7 @@ def handle_type3(req, ntlm_message):
             domain,user,req.unparsed_uri))
         return handle_unauthorized(req)
 
-    req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
+    req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_INFO)
     set_remote_user(req, user, domain)
     result = check_authorization(req, user, proxy)
     cache.remove(req.connection.id)
@@ -367,7 +373,7 @@ def handle_basic(req, user, password):
             user,domain,req.unparsed_uri))
         return handle_unauthorized(req)
     
-    req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
+    req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_INFO)
     set_remote_user(req, user, domain)
     result = check_authorization(req, user, proxy)
     proxy.close()
