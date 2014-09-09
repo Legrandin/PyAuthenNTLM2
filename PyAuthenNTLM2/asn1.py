@@ -127,9 +127,14 @@ def parseint(payload, partial=False, tag='\x02'):
     else:
         payload = res
     value = 0
-    assert (ord(payload[0]) & 0x80) == 0x00
+    max_i = len(payload);
     for i in xrange(0,len(payload)):
-        value = value*256 + ord(payload[i])
+        item = ord(payload[i])
+        # don't ask me why this is
+        # for some reaseon 128 gets encoded as ff:ff:ff:80
+        if item == 255 and i < max_i:
+            item = 0
+        value = value*256 + item
     if partial:
         return (value, res[1])
     else:
