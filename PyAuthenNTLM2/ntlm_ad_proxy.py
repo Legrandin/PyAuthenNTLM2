@@ -228,7 +228,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
-    def check_membership(self, user, groups, base=None, tabs=0):
+    def check_membership(self, user, groups, base=None, tabs=0, checked=[]):
         """Check if the given user belong to ANY of the given groups.
 
         @user   The sAMAccountName attribute of the user
@@ -257,6 +257,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
                 result[resp[1]] = resp[2]
             msg = self._transaction('')
         
+        checked.append(base);
         if result:
             assert(len(result)==1)
             if self.debug: print '\t'*tabs + "Found entry sAMAccountName:", result.values()[0]['sAMAccountName']
@@ -266,9 +267,10 @@ class NTLM_AD_Proxy(NTLM_Proxy):
             # Cycle through all the DNs of the groups this user/group belongs to
             topgroups = result.values()[0].get('memberOf', {})
             for x in topgroups:
-                if self.check_membership(None,groups,x, tabs+1):
-                    if self.debug: print '\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"yield a match."
-                    return True
+                if (x not in checked):
+                    if self.check_membership(None,groups,x, tabs+1, checked):
+                        if self.debug: print '\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"yield a match."
+                        return True
 
         if self.debug: print '\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"did not  yield any match."
         return False
