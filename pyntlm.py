@@ -285,7 +285,7 @@ def check_authorization(req, username, proxy):
     '''
    
     rules = ''.join(req.requires()).strip()
-    if rules=='valid-user' or cacheGroups.has(rules, username):
+    if rules=='' or rules=='valid-user' or cacheGroups.has(rules, username):
         return True
     groups = []
     for r in req.requires():
