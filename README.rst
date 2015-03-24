@@ -174,7 +174,7 @@ Experimental
 The [pdc]/[bdc] settings may also refer to an Active Directory server.
 The syntax becomes slightly more complex:
 
-    ldap://server[/baseDN]
+    ldap://server[:port][/baseDN]
 
 where ``server`` is the IP or DNS name of the Active Directory server, and the
 optional ``baseDN`` is the base Distinguished Name for the queries (only needed
@@ -212,6 +212,14 @@ If the user belonged to a sub-group of ``Power Users`` called
 A user that does not belong to any of such groups is denied access, even if
 its credentials were correct, unless its name is included in a ``Require user``
 option.
+
+If you are working in a complex setup with multiple AD servers, you may want
+to connect to the global catalog (GC) instead of a single AD instance. 
+Using the GC, group memberships will work across AD instances which often
+required in large organizations.
+
+  ldap://10.12.13.1:3268/DC=nasa,DC=gov
+
 
 Caching
 -------

@@ -225,9 +225,12 @@ def connect_to_proxy(req, type1):
             if server.startswith('ldap:'):
                 url = urlparse(server)
                 decoded_path =urllib.unquote(url.path)[1:]
-                req.log_error('PYTNLM: Initiating connection to Active Directory server %s (domain %s) using base DN "%s".' %
-                    (url.netloc, domain, decoded_path), apache.APLOG_INFO)
-                proxy = NTLM_AD_Proxy(url.netloc, domain, base=decoded_path)
+                port = url.port;
+                if port is None:
+                    port = 389
+                req.log_error('PYTNLM: Initiating connection to Active Directory server %s:%s (domain %s) using base DN "%s".' %
+                    (url.hostname, port, domain, decoded_path), apache.APLOG_INFO)
+                proxy = NTLM_AD_Proxy(url.hostname, domain, base=decoded_path, portAD=port)
             else:
                 req.log_error('PYTNLM: Initiating connection to Domain Controller server %s (domain %s).' %
                     (server, domain), apache.APLOG_INFO)

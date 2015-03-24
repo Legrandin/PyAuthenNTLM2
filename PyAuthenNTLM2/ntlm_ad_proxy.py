@@ -219,11 +219,9 @@ class NTLM_AD_Proxy(NTLM_Proxy):
     """This is a class that handles one single NTLM authentication request like it was
     a domain controller. However, it is just a proxy for the real, remote DC.
     """
-    _portad = 389
-
-    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base='', verbose=False):
+    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base='', verbose=False, portAD=389):
         global debug
-        NTLM_Proxy.__init__(self, ipad, self._portad, domain, lambda: LDAP_Context(), socketFactory)
+        NTLM_Proxy.__init__(self, ipad, portAD, domain, lambda: LDAP_Context(), socketFactory)
         self.base = base
         self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
