@@ -222,6 +222,7 @@ def connect_to_proxy(req, type1):
     for server in (pdc, bdc):
         if not server: continue
         try:
+            verbose_mode = req.get_options().get('VerboseMode','off').lower() == 'on'
             if server.startswith('ldap:'):
                 url = urlparse(server)
                 decoded_path =urllib.unquote(url.path)[1:]
@@ -230,11 +231,13 @@ def connect_to_proxy(req, type1):
                     port = 389
                 req.log_error('PYTNLM: Initiating connection to Active Directory server %s:%s (domain %s) using base DN "%s".' %
                     (url.hostname, port, domain, decoded_path), apache.APLOG_INFO)
-                proxy = NTLM_AD_Proxy(url.hostname, domain, base=decoded_path, portAD=port)
+
+
+                proxy = NTLM_AD_Proxy(url.hostname, domain, base=decoded_path, portAD=port, verbose=verbose_mode)
             else:
                 req.log_error('PYTNLM: Initiating connection to Domain Controller server %s (domain %s).' %
                     (server, domain), apache.APLOG_INFO)
-                proxy = NTLM_DC_Proxy(server, domain)
+                proxy = NTLM_DC_Proxy(server, domain,verbose=verbose_mode)
             ntlm_challenge = proxy.negotiate(type1)
         except Exception, e:
             req.log_error('PYNTLM: Error when retrieving Type 2 message from server(%s) = %s' % (server,str(e)), apache.APLOG_CRIT)
@@ -259,7 +262,7 @@ def handle_type1(req, ntlm_message):
     except Exception, e:
         return apache.HTTP_INTERNAL_SERVER_ERROR
 
-    proxy_mode = req.get_options().get('WebProxyMode','OFF').lower() == 'on';
+    proxy_mode = req.get_options().get('WebProxyMode','off').lower() == 'on';
 
     cache.add(req.connection.id, proxy)
     req.err_headers_out.add('Proxy-Authenticate' if proxy_mode else 'WWW-Authenticate', "NTLM " + base64.b64encode(ntlm_challenge))
@@ -395,7 +398,7 @@ def authenhandler(req):
         req.connection.id, req.method,req.unparsed_uri,len(cache)), apache.APLOG_INFO)
 
     # Extract Authorization header, as a list (if present)
-    proxy_mode = req.get_options().get('WebProxyMode','OFF').lower() == 'on';
+    proxy_mode = req.get_options().get('WebProxyMode','off').lower() == 'on';
     auth_headers = req.headers_in.get('Proxy-Authorization' if proxy_mode else 'Authorization', [])
     if not isinstance(auth_headers, list):
         auth_headers = [ auth_headers ]

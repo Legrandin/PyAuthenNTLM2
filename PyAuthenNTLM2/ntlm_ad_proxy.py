@@ -19,6 +19,9 @@
 # limitations under the License.
 
 import socket
+import datetime
+import sys
+from __future__ import print_function
 from gssapi import *
 from ntlm_proxy import NTLM_Proxy, NTLM_Proxy_Exception
 
@@ -226,6 +229,11 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
+    def log(msg)
+        if self.debug == False: return
+        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        print("%s %s" % (st,msg), file=sys.stderr)
+
     def check_membership(self, user, groups, base=None, tabs=0, checked=[]):
         """Check if the given user belong to ANY of the given groups.
 
@@ -237,10 +245,10 @@ class NTLM_AD_Proxy(NTLM_Proxy):
 
         dn = base or self.base
         if user:
-            if self.debug: print '\t'*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,base)
+            self.log('\t'*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,base))
             msg = self.proto.make_search_req(dn, { 'sAMAccountName':user }, ['memberOf','sAMAccountName'])
         else:
-            if self.debug: print '\t'*tabs + "Checking if group %s is a sub-group of %s" % (groups,base)
+            self.log('\t'*tabs + "Checking if group %s is a sub-group of %s" % (groups,base))
             msg = self.proto.make_search_req(dn, {}, ['memberOf','sAMAccountName'])
         msg = self._transaction(msg)
         
@@ -255,10 +263,10 @@ class NTLM_AD_Proxy(NTLM_Proxy):
                 result[resp[1]] = resp[2]
             msg = self._transaction('')
         
-        checked.append(base);
+        checked.append(base)
         if result:
             assert(len(result)==1)
-            if self.debug: print '\t'*tabs + "Found entry sAMAccountName:", result.values()[0]['sAMAccountName']
+            self.log('\t'*tabs + "Found entry sAMAccountName:", result.values()[0]['sAMAccountName'])
             for g in groups:
                 if g in result.values()[0]['sAMAccountName']:
                  return True
@@ -267,8 +275,8 @@ class NTLM_AD_Proxy(NTLM_Proxy):
             for x in topgroups:
                 if (x not in checked):
                     if self.check_membership(None,groups,x, tabs+1, checked):
-                        if self.debug: print '\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"yield a match."
+                        self.log('\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"yield a match.")
                         return True
 
-        if self.debug: print '\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"did not  yield any match."
+        self.log('\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"did not yield any match.")
         return False
