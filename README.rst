@@ -156,6 +156,8 @@ PythonOption BDC *bdc*                 Replace *bdc* with the address of the Bac
 PythonOption NameFmt SAM|LogOn         Set REMOTE_USER to the user name only (SAM) or to the
                                        legacy Logon format (domain\username).
                                        This entry is optional. SAM is the default.
+PythonOption WebProxyMode ON	       Work in the context of mod_proxy requests (default is OFF)
+PythonOption VerboseMode ON	       Talk more while working (default is OFF)
 =====================================  ======
 
 Apache needs to be configured to send keep alives (directive ``KeepAlive On``).
@@ -174,7 +176,7 @@ Experimental
 The [pdc]/[bdc] settings may also refer to an Active Directory server.
 The syntax becomes slightly more complex:
 
-    ldap://server[/baseDN]
+    ldap://server[:port][/baseDN]
 
 where ``server`` is the IP or DNS name of the Active Directory server, and the
 optional ``baseDN`` is the base Distinguished Name for the queries (only needed
@@ -212,6 +214,14 @@ If the user belonged to a sub-group of ``Power Users`` called
 A user that does not belong to any of such groups is denied access, even if
 its credentials were correct, unless its name is included in a ``Require user``
 option.
+
+If you are working in a complex setup with multiple AD servers, you may want
+to connect to the global catalog (GC) instead of a single AD instance. 
+Using the GC, group memberships will work across AD instances which often
+required in large organizations.
+
+  ldap://10.12.13.1:3268/DC=nasa,DC=gov
+
 
 Caching
 -------

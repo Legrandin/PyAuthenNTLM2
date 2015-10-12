@@ -167,6 +167,12 @@ def set_remote_user(req, username, domain):
         req.user = domain + '\\' + username
     else:
         req.user = username
+    namecase = req.get_options().get('NameCase', 'ignore').lower()
+    if namecase == 'lower':
+        req.user = req.user.lower()
+    elif namecase == 'upper':
+        req.user = req.user.upper()
+    
 
 def decode_http_authorization_header(auth):
     '''Return a tuple with the parsed content of an HTTP Authorization header
@@ -191,12 +197,12 @@ def handle_unauthorized(req):
 
     @return     The Apache return code for 401 response.
     '''
-
-    req.err_headers_out.add('WWW-Authenticate', 'NTLM')
-    if use_basic_auth:
+    proxy_mode = req.get_options().get('WebProxyMode','off').lower() == 'on';
+    req.err_headers_out.add('Proxy-Authenticate' if proxy_mode else 'WWW-Authenticate', 'NTLM')
+    if use_basic_auth:        
         req.err_headers_out.add('WWW-Authenticate', 'Basic realm="%s"' % req.auth_name())
     req.err_headers_out.add('Connection', 'close')
-    return apache.HTTP_UNAUTHORIZED
+    return apache.HTTP_PROXY_AUTHENTICATION_REQUIRED if proxy_mode else apache.HTTP_UNAUTHORIZED
 
 def connect_to_proxy(req, type1):
     '''Try to sequentially connect to all Domain Controllers in the list
@@ -216,16 +222,22 @@ def connect_to_proxy(req, type1):
     for server in (pdc, bdc):
         if not server: continue
         try:
+            verbose_mode = req.get_options().get('VerboseMode','off').lower() == 'on'
             if server.startswith('ldap:'):
                 url = urlparse(server)
                 decoded_path =urllib.unquote(url.path)[1:]
-                req.log_error('PYTNLM: Initiating connection to Active Directory server %s (domain %s) using base DN "%s".' %
-                    (url.netloc, domain, decoded_path), apache.APLOG_INFO)
-                proxy = NTLM_AD_Proxy(url.netloc, domain, base=decoded_path)
+                port = url.port;
+                if port is None:
+                    port = 389
+                req.log_error('PYTNLM: Initiating connection to Active Directory server %s:%s (domain %s) using base DN "%s".' %
+                    (url.hostname, port, domain, decoded_path), apache.APLOG_INFO)
+
+
+                proxy = NTLM_AD_Proxy(url.hostname, domain, base=decoded_path, portAD=port, verbose=verbose_mode)
             else:
                 req.log_error('PYTNLM: Initiating connection to Domain Controller server %s (domain %s).' %
                     (server, domain), apache.APLOG_INFO)
-                proxy = NTLM_DC_Proxy(server, domain)
+                proxy = NTLM_DC_Proxy(server, domain,verbose=verbose_mode)
             ntlm_challenge = proxy.negotiate(type1)
         except Exception, e:
             req.log_error('PYNTLM: Error when retrieving Type 2 message from server(%s) = %s' % (server,str(e)), apache.APLOG_CRIT)
@@ -250,9 +262,11 @@ def handle_type1(req, ntlm_message):
     except Exception, e:
         return apache.HTTP_INTERNAL_SERVER_ERROR
 
+    proxy_mode = req.get_options().get('WebProxyMode','off').lower() == 'on';
+
     cache.add(req.connection.id, proxy)
-    req.err_headers_out.add('WWW-Authenticate', "NTLM " + base64.b64encode(ntlm_challenge))
-    return apache.HTTP_UNAUTHORIZED
+    req.err_headers_out.add('Proxy-Authenticate' if proxy_mode else 'WWW-Authenticate', "NTLM " + base64.b64encode(ntlm_challenge))
+    return apache.HTTP_PROXY_AUTHENTICATION_REQUIRED if proxy_mode else apache.HTTP_UNAUTHORIZED
 
 def check_authorization(req, username, proxy):
     '''Check if a user that was already authenticated by some previous steps
@@ -277,7 +291,7 @@ def check_authorization(req, username, proxy):
     '''
    
     rules = ''.join(req.requires()).strip()
-    if rules=='valid-user' or cacheGroups.has(rules, username):
+    if rules=='' or rules=='valid-user' or cacheGroups.has(rules, username):
         return True
     groups = []
     for r in req.requires():
@@ -333,7 +347,7 @@ def handle_type3(req, ntlm_message):
             domain,user,req.unparsed_uri))
         return handle_unauthorized(req)
 
-    req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
+    req.log_error('PYNTLM: User %s/%s has been authenticated to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_INFO)
     set_remote_user(req, user, domain)
     result = check_authorization(req, user, proxy)
     cache.remove(req.connection.id)
@@ -367,7 +381,7 @@ def handle_basic(req, user, password):
             user,domain,req.unparsed_uri))
         return handle_unauthorized(req)
     
-    req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_NOTICE)
+    req.log_error('PYNTLM: User %s/%s has been authenticated (Basic) to access URI %s' % (user,domain,req.unparsed_uri), apache.APLOG_INFO)
     set_remote_user(req, user, domain)
     result = check_authorization(req, user, proxy)
     proxy.close()
@@ -384,7 +398,8 @@ def authenhandler(req):
         req.connection.id, req.method,req.unparsed_uri,len(cache)), apache.APLOG_INFO)
 
     # Extract Authorization header, as a list (if present)
-    auth_headers = req.headers_in.get('Authorization', [])
+    proxy_mode = req.get_options().get('WebProxyMode','off').lower() == 'on';
+    auth_headers = req.headers_in.get('Proxy-Authorization' if proxy_mode else 'Authorization', [])
     if not isinstance(auth_headers, list):
         auth_headers = [ auth_headers ]
 
