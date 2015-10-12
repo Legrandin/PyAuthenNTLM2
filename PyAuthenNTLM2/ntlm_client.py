@@ -250,7 +250,7 @@ def print_help():
     print "ntlm_client {-u|--user} usr {-p|--password} pwd {-d|--domain} DOMAIN {-a|--address} address [{-g|--group} name[,name]* [{-m/--member member}]]"
     print
     print "    When '-a/--address' starts with 'ldap://', it is an URI of an Active Directory server."
-    print "    The URI has format ldap://serveraddres/dn"
+    print "    The URI has format ldap://serveraddres[:port]/dn"
     print "        - serveraddress is the IP or the hostname of the AD server."
     print "        - dn is the base Distinguished name to use for the LDAP search."
     print "          Special characters must be escaped (space=%20, comma=%2C, equals=%3D)"
@@ -309,7 +309,9 @@ if __name__ == '__main__':
     if config['address'].startswith('ldap:'):
         print "Using Active Directory (LDAP) to verify credentials."
         url = urlparse(config['address'])
-        proxy = NTLM_AD_Proxy(url.netloc, config['domain'], base=urllib.unquote(url.path)[1:], verbose=config['verbose'])
+        port = 389
+        if url.port: port = url.port
+        proxy = NTLM_AD_Proxy(url.netloc, config['domain'], base=urllib.unquote(url.path)[1:], verbose=config['verbose'], portAD=port)
     else:
         print "Using Domain Controller to verify credentials."
         proxy = NTLM_DC_Proxy(config['address'], config['domain'], verbose=config['verbose'])
