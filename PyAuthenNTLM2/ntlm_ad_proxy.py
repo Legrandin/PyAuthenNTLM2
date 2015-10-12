@@ -18,10 +18,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
 import socket
 import datetime
 import sys
-from __future__ import print_function
 from gssapi import *
 from ntlm_proxy import NTLM_Proxy, NTLM_Proxy_Exception
 
@@ -229,7 +229,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
-    def log(msg)
+    def log(msg):
         if self.debug == False: return
         st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
         print("%s %s" % (st,msg), file=sys.stderr)
