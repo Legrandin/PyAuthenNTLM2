@@ -231,7 +231,7 @@ def connect_to_proxy(req, type1):
                 req.log_error('PYTNLM: Initiating connection to Active Directory server %s:%s (domain %s) using base DN "%s".' %
                     (url.hostname, port, domain, decoded_path), apache.APLOG_INFO)
                 logFn = lambda *msg: req.log_error('PYNTLM: ' + " ".join(map(str,x)), apache.APLOG_INFO)
-                proxy = NTLM_AD_Proxy(url.hostname, domain, base=decoded_path, portAD=port, verbose=verbose_mode, logFn=logFn)
+                proxy = NTLM_AD_Proxy(url.hostname, domain, base=decoded_path, portAD=port, logFn=logFn)
             else:
                 req.log_error('PYTNLM: Initiating connection to Domain Controller server %s (domain %s).' %
                     (server, domain), apache.APLOG_INFO)
