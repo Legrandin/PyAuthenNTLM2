@@ -229,10 +229,10 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
-    def log(msg):
+    def log(self,*msg):
         if self.debug == False: return
-        st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-        print("%s %s" % (st,msg), file=sys.stderr)
+        st = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print(st,*msg, file=sys.stderr)
 
     def check_membership(self, user, groups, base=None, tabs=0, checked=[]):
         """Check if the given user belong to ANY of the given groups.
@@ -245,10 +245,10 @@ class NTLM_AD_Proxy(NTLM_Proxy):
 
         dn = base or self.base
         if user:
-            self.log('\t'*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,base))
+            self.log('\t'*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,dn))
             msg = self.proto.make_search_req(dn, { 'sAMAccountName':user }, ['memberOf','sAMAccountName'])
         else:
-            self.log('\t'*tabs + "Checking if group %s is a sub-group of %s" % (groups,base))
+            self.log('\t'*tabs + "Checking if group %s is a sub-group of %s" % (groups,dn))
             msg = self.proto.make_search_req(dn, {}, ['memberOf','sAMAccountName'])
         msg = self._transaction(msg)
         
