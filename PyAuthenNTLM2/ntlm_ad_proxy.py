@@ -18,9 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
 import socket
-import datetime
 import sys
 from gssapi import *
 from ntlm_proxy import NTLM_Proxy, NTLM_Proxy_Exception
@@ -222,17 +220,14 @@ class NTLM_AD_Proxy(NTLM_Proxy):
     """This is a class that handles one single NTLM authentication request like it was
     a domain controller. However, it is just a proxy for the real, remote DC.
     """
-    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base='', verbose=False, portAD=389):
-        global debug
+    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base='', portAD=389, logFn=None):
         NTLM_Proxy.__init__(self, ipad, portAD, domain, lambda: LDAP_Context(), socketFactory)
+        self.logFn = logFn
         self.base = base
-        self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
     def log(self,*msg):
-        if self.debug == False: return
-        st = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print(st,*msg, file=sys.stderr)
+        if self.logFn: self.logFn(*msg)
 
     def check_membership(self, user, groups, base=None, tabs=0, checked=[]):
         """Check if the given user belong to ANY of the given groups.

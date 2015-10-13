@@ -307,11 +307,13 @@ if __name__ == '__main__':
         print_help()
 
     if config['address'].startswith('ldap:'):
-        print "Using Active Directory (LDAP) to verify credentials."
         url = urlparse(config['address'])
-        port = 389
-        if url.port: port = url.port
-        proxy = NTLM_AD_Proxy(url.netloc, config['domain'], base=urllib.unquote(url.path)[1:], verbose=config['verbose'], portAD=port)
+        port = url.port or 389
+        host = url.hostname
+        print "Using Active Directory (LDAP) to verify credentials: %s:%s." % (host,port)
+        logFn = None
+        if config['verbose']: logFn = lambda *msg: sys.stdout.write("* " + " ".join(map(str,msg)) + "\n")
+        proxy = NTLM_AD_Proxy(host, config['domain'], base=urllib.unquote(url.path)[1:], logFn = logFn, portAD=port)
     else:
         print "Using Domain Controller to verify credentials."
         proxy = NTLM_DC_Proxy(config['address'], config['domain'], verbose=config['verbose'])

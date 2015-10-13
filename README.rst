@@ -157,7 +157,6 @@ PythonOption NameFmt SAM|LogOn         Set REMOTE_USER to the user name only (SA
                                        legacy Logon format (domain\username).
                                        This entry is optional. SAM is the default.
 PythonOption WebProxyMode ON	       Work in the context of mod_proxy requests (default is OFF)
-PythonOption VerboseMode ON	       Talk more while working (default is OFF)
 =====================================  ======
 
 Apache needs to be configured to send keep alives (directive ``KeepAlive On``).

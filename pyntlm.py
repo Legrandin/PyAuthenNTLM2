@@ -222,7 +222,6 @@ def connect_to_proxy(req, type1):
     for server in (pdc, bdc):
         if not server: continue
         try:
-            verbose_mode = req.get_options().get('VerboseMode','off').lower() == 'on'
             if server.startswith('ldap:'):
                 url = urlparse(server)
                 decoded_path =urllib.unquote(url.path)[1:]
@@ -231,13 +230,12 @@ def connect_to_proxy(req, type1):
                     port = 389
                 req.log_error('PYTNLM: Initiating connection to Active Directory server %s:%s (domain %s) using base DN "%s".' %
                     (url.hostname, port, domain, decoded_path), apache.APLOG_INFO)
-
-
-                proxy = NTLM_AD_Proxy(url.hostname, domain, base=decoded_path, portAD=port, verbose=verbose_mode)
+                logFn = lambda *msg: req.log_error('PYNTLM: ' + " ".join(map(str,x)), apache.APLOG_INFO)
+                proxy = NTLM_AD_Proxy(url.hostname, domain, base=decoded_path, portAD=port, verbose=verbose_mode, logFn=logFn)
             else:
                 req.log_error('PYTNLM: Initiating connection to Domain Controller server %s (domain %s).' %
                     (server, domain), apache.APLOG_INFO)
-                proxy = NTLM_DC_Proxy(server, domain,verbose=verbose_mode)
+                proxy = NTLM_DC_Proxy(server, domain)
             ntlm_challenge = proxy.negotiate(type1)
         except Exception, e:
             req.log_error('PYNTLM: Error when retrieving Type 2 message from server(%s) = %s' % (server,str(e)), apache.APLOG_CRIT)
