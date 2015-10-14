@@ -261,12 +261,16 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         checked.append(base)
         if result:
             assert(len(result)==1)
-            self.log('    '*tabs + "Found entry sAMAccountName:", result.values()[0]['sAMAccountName'])
+            sAMAccountName = result.values()[0]['sAMAccountName']
+            self.log('    '*tabs + "Found entry sAMAccountName:", sAMAccountName)
             for g in groups:
-                if g in result.values()[0]['sAMAccountName']:
-                 return True
+                if g in sAMAccountName:
+                    return True
             # Cycle through all the DNs of the groups this user/group belongs to
             topgroups = result.values()[0].get('memberOf', {})
+            if len(topgroups) == 0:
+                self.log('    '*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName']," LDAP response got no memberOf attributes.")
+                return False
             for x in topgroups:
                 if (x not in checked):
                     if self.check_membership(None,groups,x, tabs+1, checked):
