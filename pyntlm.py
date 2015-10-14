@@ -230,7 +230,7 @@ def connect_to_proxy(req, type1):
                     port = 389
                 req.log_error('PYTNLM: Initiating connection to Active Directory server %s:%s (domain %s) using base DN "%s".' %
                     (url.hostname, port, domain, decoded_path), apache.APLOG_INFO)
-                logFn = lambda *msg: req.log_error('PYNTLM: ' + " ".join(map(str,msg)), apache.APLOG_INFO)
+                logFn = lambda *msg: apache.log_error('PYNTLM_AD_PROXY: ' + " ".join(map(str,msg)),apache.APLOG_INFO,req.server)
                 proxy = NTLM_AD_Proxy(url.hostname, domain, base=decoded_path, portAD=port, logFn=logFn)
             else:
                 req.log_error('PYTNLM: Initiating connection to Domain Controller server %s (domain %s).' %
@@ -290,6 +290,8 @@ def check_authorization(req, username, proxy):
    
     rules = ''.join(req.requires()).strip()
     if rules=='' or rules=='valid-user' or cacheGroups.has(rules, username):
+        req.log_error('PYNTLM: CACHED Membership check succeeded for %s in rule "%s" for URI %s.' %
+                (username,str(rules),req.unparsed_uri), apache.APLOG_INFO)
         return True
     groups = []
     for r in req.requires():

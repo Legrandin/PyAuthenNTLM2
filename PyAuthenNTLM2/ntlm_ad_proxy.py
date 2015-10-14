@@ -223,6 +223,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
     def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base='', portAD=389, logFn=None):
         NTLM_Proxy.__init__(self, ipad, portAD, domain, lambda: LDAP_Context(), socketFactory)
         self.logFn = logFn
+        self.log('Enabled AD membership checking')
         self.base = base
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
@@ -237,13 +238,12 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         @base   The basis DN for the search (if not specificed, the default one is used)
         @return True if the user belongs to the group, False otherwise.
         """
-
         dn = base or self.base
         if user:
-            self.log('\t'*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,dn))
+            self.log('    '*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,dn))
             msg = self.proto.make_search_req(dn, { 'sAMAccountName':user }, ['memberOf','sAMAccountName'])
         else:
-            self.log('\t'*tabs + "Checking if group %s is a sub-group of %s" % (groups,dn))
+            self.log('    '*tabs + "Checking if group %s is a sub-group of %s" % (groups,dn))
             msg = self.proto.make_search_req(dn, {}, ['memberOf','sAMAccountName'])
         msg = self._transaction(msg)
         
@@ -261,7 +261,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         checked.append(base)
         if result:
             assert(len(result)==1)
-            self.log('\t'*tabs + "Found entry sAMAccountName:", result.values()[0]['sAMAccountName'])
+            self.log('    '*tabs + "Found entry sAMAccountName:", result.values()[0]['sAMAccountName'])
             for g in groups:
                 if g in result.values()[0]['sAMAccountName']:
                  return True
@@ -270,8 +270,8 @@ class NTLM_AD_Proxy(NTLM_Proxy):
             for x in topgroups:
                 if (x not in checked):
                     if self.check_membership(None,groups,x, tabs+1, checked):
-                        self.log('\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"yield a match.")
+                        self.log('    '*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"yield a match.")
                         return True
 
-        self.log('\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"did not yield any match.")
+        self.log('    '*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"did not yield any match.")
         return False
