@@ -128,7 +128,14 @@ class CacheGroups:
     def has(self, group, user):
         if not self._cache.has_key(group):
             return False
-        return self._cache[group].has_key(user)
+        haskey = self._cache[group].has_key(user)
+        if haskey:
+            if self._cache[group][user] + 600 < int(time.time()):
+                self._mutex.acquire()
+                del self._cache[group][user]
+                self._mutex.release()
+                return False
+        return haskey
 
 cache = CacheConnections()
 cacheGroups = CacheGroups()
