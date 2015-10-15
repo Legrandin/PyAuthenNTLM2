@@ -230,7 +230,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
     def log(self,*msg):
         if self.logFn: self.logFn(*msg)
 
-    def check_membership(self, user, groups, base=None, tabs=0, checked=[]):
+    def check_membership(self, user, groups, base=None, tabs=0, checked=None):
         """Check if the given user belong to ANY of the given groups.
 
         @user   The sAMAccountName attribute of the user
@@ -238,6 +238,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
         @base   The basis DN for the search (if not specificed, the default one is used)
         @return True if the user belongs to the group, False otherwise.
         """
+
         dn = base or self.base
         if user:
             self.log('    '*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,dn))
@@ -257,8 +258,10 @@ class NTLM_AD_Proxy(NTLM_Proxy):
             if resp[1]:
                 result[resp[1]] = resp[2]
             msg = self._transaction('')
-        
-        checked.append(base)
+        if not checked:
+            checked = [base]
+        else:
+            checked.append(base)
         if result:
             assert(len(result)==1)
             sAMAccountName = result.values()[0]['sAMAccountName']
@@ -269,7 +272,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
             # Cycle through all the DNs of the groups this user/group belongs to
             topgroups = result.values()[0].get('memberOf', {})
             if len(topgroups) == 0:
-                self.log('    '*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName']," LDAP response got no memberOf attributes.")
+                self.log('    '*tabs + "OOPS sAMAccountName:", result.values()[0]['sAMAccountName']," LDAP response got no memberOf attributes.")
                 return False
             for x in topgroups:
                 if (x not in checked):
