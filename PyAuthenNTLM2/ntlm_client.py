@@ -305,7 +305,7 @@ if __name__ == '__main__':
     if 'member' in config and not 'group' in config:
         print "Option '-m/--memeber can only be specified together with -g/--group'."
         print_help()
-
+    
     if config['address'].startswith('ldap:'):
         url = urlparse(config['address'])
         port = url.port or 389
@@ -329,7 +329,7 @@ if __name__ == '__main__':
     client.parse_ntlm_challenge(challenge)
     authenticate = client.make_ntlm_authenticate()
     if proxy.authenticate(authenticate):
-        print "User %s\\%s was authenticated." % (config['user'], config['domain'])
+        print "User %s\\%s was authenticated." % (config['domain'],config['user'])
         
         # Group membership check
         member = config.get('member', config['user'])
