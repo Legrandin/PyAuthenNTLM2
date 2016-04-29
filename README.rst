@@ -114,6 +114,7 @@ Usage is best shown by an example of Apache configuration: ::
     PythonOption Domain WDOMAIN
     PythonOption PDC 192.1.2.45
     PythonOption BDC 192.1.2.46
+    PythonOption Require valid-user
 
     # Bypass authentication for local clients.
     # Comment these lines if they should authenticate too.
