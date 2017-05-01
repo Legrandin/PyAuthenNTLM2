@@ -108,7 +108,7 @@ Usage is best shown by an example of Apache configuration: ::
 
     AuthType NTLM
     AuthName WDOMAIN
-    require valid-user
+    PythonOption require valid-user
 
     PythonAuthenHandler pyntlm
     PythonOption Domain WDOMAIN

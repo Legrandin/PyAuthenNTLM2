@@ -108,11 +108,12 @@ class LDAP_Context:
         bindRequest = maketlv('\x60', makeint(3) + makeoctstr('') + authentication)
         # LDAPMessage
         self.messageID += 1
-        return makeseq(makeint(self.messageID) + bindRequest)
+        pdu = makeseq(makeint(self.messageID) + bindRequest)
+        return pdu
 
     def parse_session_setup_resp(self, response):
         """Parse the LDAP bind response, as received from the AD.
-        
+
         @response       The LDAP response received from the AD
         @return         A tuple where:
                           - the 1st item is a boolean. If False the user
@@ -143,7 +144,7 @@ class LDAP_Context:
 
     def make_search_req(self, base, criteria, attributes):
         """Create an LDAP search request that can be sent to the AD server.
-         
+
          @base          The DN to start the search from.
          @criteria      A dictionary with the attributes to look for (zero or one object for now)
          @attributes    A list of attributes to return.
@@ -170,7 +171,7 @@ class LDAP_Context:
 
     def parse_search_resp(self, response):
         """Parse an LDAP search response received from the AD server.
-        
+
         @return         A tuple (True, string) if the search is complete.
                         A tuple (False, objectName, attributes) where objectName is a DN, and
                         attributes is a dictionary of lists. In attributes, the key is the
@@ -247,7 +248,7 @@ class NTLM_AD_Proxy(NTLM_Proxy):
             self.log('    '*tabs + "Checking if group %s is a sub-group of %s" % (groups,dn))
             msg = self.proto.make_search_req(dn, {}, ['memberOf','sAMAccountName'])
         msg = self._transaction(msg)
-        
+
         result = {}
         while True:
             resp = self.proto.parse_search_resp(msg)

@@ -321,6 +321,7 @@ if __name__ == '__main__':
     client = NTLM_Client(config['user'],config['domain'],config['password'])
 
     type1 = client.make_ntlm_negotiate()
+
     challenge = proxy.negotiate(type1)
     if not challenge:
         print "Did not get the challenge!"

@@ -295,7 +295,7 @@ def check_authorization(req, username, proxy):
     @return     True if the user is authorized, False otherwise.
     '''
    
-    rules = ''.join(req.requires()).strip()
+    rules = ''.join(req.get_options()['Require'])
     if rules=='' or rules=='valid-user' or cacheGroups.has(rules, username):
         req.log_error('PYNTLM: CACHED Membership check succeeded for %s in rule "%s" for URI %s.' %
                 (username,str(rules),req.unparsed_uri), apache.APLOG_INFO)
