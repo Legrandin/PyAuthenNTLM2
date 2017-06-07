@@ -295,22 +295,24 @@ def check_authorization(req, username, proxy):
     @return     True if the user is authorized, False otherwise.
     '''
    
-    rules = ''.join(req.get_options()['Require']).strip()
-    groupRules = ''.join(req.get_options()['RequireGroup']).strip()
+    rules = req.get_options().get('Require','')
+    groupRules = req.get_options().get('RequireGroup','')
     if rules=='' or cacheGroups.has(groupRules, username):
         req.log_error('PYNTLM: CACHED Membership check succeeded for %s in rule "%s" for URI %s.' %
                 (username,str(rules),req.unparsed_uri), apache.APLOG_INFO)
         return True
     groups = []
-    for r in req.get_options()['Require']:
+    r = req.get_options().get('Require','')
+    if r:
         users = [ u.strip() for u in r.split(",")]
         if username in users:
            req.log_error('PYNTLM: Authorization succeeded for user %s and URI %s.' %
               (username,req.unparsed_uri), apache.APLOG_INFO)
            return True
 
-    for r in req.get_options()['RequireGroup']:
-        groups += [ g.strip() for g in r.split(",")]
+    rg = req.get_options().get('RequireGroup','')
+    if rg:
+        groups += [ g.strip() for g in rg.split(",")]
 
     if groups:
         try:
@@ -492,7 +494,9 @@ def authenhandler(req):
         error = 'Type 2 message in client request'
     except Exception, e:
         error = str(e)
-    req.log_error('Incorrect NTLM message in Authorization header for URI %s: %s' %
+        req.log_error('Incorrect NTLM message in Authorization header for URI %s: %s' %
             (req.unparsed_uri,error), apache.APLOG_ERR)
+        for key,value in req.__dict__.iteritems():
+            req.log_error('req.%s = %s' % (key,value), apache.APLOG_ERR)
     return apache.HTTP_BAD_REQUEST
 
