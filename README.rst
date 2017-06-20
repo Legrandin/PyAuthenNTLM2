@@ -108,7 +108,9 @@ Usage is best shown by an example of Apache configuration: ::
 
     AuthType NTLM
     AuthName WDOMAIN
-    require valid-user
+    PythonOption Require valid-user
+    # PythonOption Require u1,u2
+    # PythonOption RequireGroup g1,g2
 
     PythonAuthenHandler pyntlm
     PythonOption Domain WDOMAIN
@@ -138,8 +140,8 @@ The following options exist:
 Apache option                          Description
 =====================================  ======
 AuthType NTLM                          Always specify it like this.  
-Require valid-user                     Always specify it like this.
-Require user XYZ,WTY                   | Grants access only to users named XYZ or WTY.
+PythonOption Require valid-user                     Always specify it like this.
+PythonOption Require XYZ,WTY                   | Grants access only to users named XYZ or WTY.
                                        | Multiple "Require user" option lines can be specified.
 AuthName *domain*                      Replace *domain* with the domain name to present to
                                        users in the pop-up dialog.
@@ -156,6 +158,7 @@ PythonOption BDC *bdc*                 Replace *bdc* with the address of the Bac
 PythonOption NameFmt SAM|LogOn         Set REMOTE_USER to the user name only (SAM) or to the
                                        legacy Logon format (domain\username).
                                        This entry is optional. SAM is the default.
+PythonOption WebProxyMode ON	       Work in the context of mod_proxy requests (default is OFF)
 =====================================  ======
 
 Apache needs to be configured to send keep alives (directive ``KeepAlive On``).
@@ -174,7 +177,7 @@ Experimental
 The [pdc]/[bdc] settings may also refer to an Active Directory server.
 The syntax becomes slightly more complex:
 
-    ldap://server[/baseDN]
+    ldap://server[:port][/baseDN]
 
 where ``server`` is the IP or DNS name of the Active Directory server, and the
 optional ``baseDN`` is the base Distinguished Name for the queries (only needed
@@ -190,7 +193,7 @@ When using an Active Directory server, it is also possible to check if the
 user is authorized to access page. More precisely, it is possible to grant
 access only if the user is member of one group.
 
-The option ``Require group`` can be used to pass the comma-separated list of groups
+The option ``PythonOption Require group`` can be used to pass the comma-separated list of groups
 the user must belong to. The group identifier is the logon name, that is,
 the ``sAMAccountName`` attribute in Active Directory.
 
@@ -210,8 +213,16 @@ Only users that belong to ``Administrators`` or ``Power Users`` will be granted 
 If the user belonged to a sub-group of ``Power Users`` called
 ``Super Power Users``, they would pass the check too.
 A user that does not belong to any of such groups is denied access, even if
-its credentials were correct, unless its name is included in a ``Require user``
+its credentials were correct, unless its name is included in a ``PythonOption Require user``
 option.
+
+If you are working in a complex setup with multiple AD servers, you may want
+to connect to the global catalog (GC) instead of a single AD instance. 
+Using the GC, group memberships will work across AD instances which often
+required in large organizations.
+
+  ldap://10.12.13.1:3268/DC=nasa,DC=gov
+
 
 Caching
 -------

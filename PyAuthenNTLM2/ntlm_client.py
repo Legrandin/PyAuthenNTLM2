@@ -250,7 +250,7 @@ def print_help():
     print "ntlm_client {-u|--user} usr {-p|--password} pwd {-d|--domain} DOMAIN {-a|--address} address [{-g|--group} name[,name]* [{-m/--member member}]]"
     print
     print "    When '-a/--address' starts with 'ldap://', it is an URI of an Active Directory server."
-    print "    The URI has format ldap://serveraddres/dn"
+    print "    The URI has format ldap://serveraddres[:port]/dn"
     print "        - serveraddress is the IP or the hostname of the AD server."
     print "        - dn is the base Distinguished name to use for the LDAP search."
     print "          Special characters must be escaped (space=%20, comma=%2C, equals=%3D)"
@@ -305,11 +305,15 @@ if __name__ == '__main__':
     if 'member' in config and not 'group' in config:
         print "Option '-m/--memeber can only be specified together with -g/--group'."
         print_help()
-
+    
     if config['address'].startswith('ldap:'):
-        print "Using Active Directory (LDAP) to verify credentials."
         url = urlparse(config['address'])
-        proxy = NTLM_AD_Proxy(url.netloc, config['domain'], base=urllib.unquote(url.path)[1:], verbose=config['verbose'])
+        port = url.port or 389
+        host = url.hostname
+        print "Using Active Directory (LDAP) to verify credentials: %s:%s." % (host,port)
+        logFn = None
+        if config['verbose']: logFn = lambda *msg: sys.stdout.write("* " + " ".join(map(str,msg)) + "\n")
+        proxy = NTLM_AD_Proxy(host, config['domain'], base=urllib.unquote(url.path)[1:], logFn = logFn, portAD=port)
     else:
         print "Using Domain Controller to verify credentials."
         proxy = NTLM_DC_Proxy(config['address'], config['domain'], verbose=config['verbose'])
@@ -317,6 +321,7 @@ if __name__ == '__main__':
     client = NTLM_Client(config['user'],config['domain'],config['password'])
 
     type1 = client.make_ntlm_negotiate()
+
     challenge = proxy.negotiate(type1)
     if not challenge:
         print "Did not get the challenge!"
@@ -325,7 +330,7 @@ if __name__ == '__main__':
     client.parse_ntlm_challenge(challenge)
     authenticate = client.make_ntlm_authenticate()
     if proxy.authenticate(authenticate):
-        print "User %s\\%s was authenticated." % (config['user'], config['domain'])
+        print "User %s\\%s was authenticated." % (config['domain'],config['user'])
         
         # Group membership check
         member = config.get('member', config['user'])

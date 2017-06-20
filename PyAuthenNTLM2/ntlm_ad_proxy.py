@@ -19,6 +19,7 @@
 # limitations under the License.
 
 import socket
+import sys
 from gssapi import *
 from ntlm_proxy import NTLM_Proxy, NTLM_Proxy_Exception
 
@@ -107,11 +108,12 @@ class LDAP_Context:
         bindRequest = maketlv('\x60', makeint(3) + makeoctstr('') + authentication)
         # LDAPMessage
         self.messageID += 1
-        return makeseq(makeint(self.messageID) + bindRequest)
+        pdu = makeseq(makeint(self.messageID) + bindRequest)
+        return pdu
 
     def parse_session_setup_resp(self, response):
         """Parse the LDAP bind response, as received from the AD.
-        
+
         @response       The LDAP response received from the AD
         @return         A tuple where:
                           - the 1st item is a boolean. If False the user
@@ -142,7 +144,7 @@ class LDAP_Context:
 
     def make_search_req(self, base, criteria, attributes):
         """Create an LDAP search request that can be sent to the AD server.
-         
+
          @base          The DN to start the search from.
          @criteria      A dictionary with the attributes to look for (zero or one object for now)
          @attributes    A list of attributes to return.
@@ -169,7 +171,7 @@ class LDAP_Context:
 
     def parse_search_resp(self, response):
         """Parse an LDAP search response received from the AD server.
-        
+
         @return         A tuple (True, string) if the search is complete.
                         A tuple (False, objectName, attributes) where objectName is a DN, and
                         attributes is a dictionary of lists. In attributes, the key is the
@@ -219,16 +221,17 @@ class NTLM_AD_Proxy(NTLM_Proxy):
     """This is a class that handles one single NTLM authentication request like it was
     a domain controller. However, it is just a proxy for the real, remote DC.
     """
-    _portad = 389
-
-    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base='', verbose=False):
-        global debug
-        NTLM_Proxy.__init__(self, ipad, self._portad, domain, lambda: LDAP_Context(), socketFactory)
+    def __init__(self, ipad, domain, socketFactory=socket, ldapFactory=None, base='', portAD=389, logFn=None):
+        NTLM_Proxy.__init__(self, ipad, portAD, domain, lambda: LDAP_Context(), socketFactory)
+        self.logFn = logFn
+        self.log('Enabled AD membership checking')
         self.base = base
-        self.debug = verbose
         #self.smbFactory =  smbFactory or (lambda: SMB_Context())
 
-    def check_membership(self, user, groups, base=None, tabs=0):
+    def log(self,*msg):
+        if self.logFn: self.logFn(*msg)
+
+    def check_membership(self, user, groups, base=None, tabs=0, checked=None):
         """Check if the given user belong to ANY of the given groups.
 
         @user   The sAMAccountName attribute of the user
@@ -239,13 +242,13 @@ class NTLM_AD_Proxy(NTLM_Proxy):
 
         dn = base or self.base
         if user:
-            if self.debug: print '\t'*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,base)
+            self.log('    '*tabs + "Checking if user %s belongs to group %s (base=%s)" % (user,groups,dn))
             msg = self.proto.make_search_req(dn, { 'sAMAccountName':user }, ['memberOf','sAMAccountName'])
         else:
-            if self.debug: print '\t'*tabs + "Checking if group %s is a sub-group of %s" % (groups,base)
+            self.log('    '*tabs + "Checking if group %s is a sub-group of %s" % (groups,dn))
             msg = self.proto.make_search_req(dn, {}, ['memberOf','sAMAccountName'])
         msg = self._transaction(msg)
-        
+
         result = {}
         while True:
             resp = self.proto.parse_search_resp(msg)
@@ -256,19 +259,27 @@ class NTLM_AD_Proxy(NTLM_Proxy):
             if resp[1]:
                 result[resp[1]] = resp[2]
             msg = self._transaction('')
-        
+        if not checked:
+            checked = [base]
+        else:
+            checked.append(base)
         if result:
             assert(len(result)==1)
-            if self.debug: print '\t'*tabs + "Found entry sAMAccountName:", result.values()[0]['sAMAccountName']
+            sAMAccountName = result.values()[0]['sAMAccountName']
+            self.log('    '*tabs + "Found entry sAMAccountName:", sAMAccountName)
             for g in groups:
-                if g in result.values()[0]['sAMAccountName']:
-                 return True
+                if g in sAMAccountName:
+                    return True
             # Cycle through all the DNs of the groups this user/group belongs to
             topgroups = result.values()[0].get('memberOf', {})
+            if len(topgroups) == 0:
+                self.log('    '*tabs + "OOPS sAMAccountName:", result.values()[0]['sAMAccountName']," LDAP response got no memberOf attributes.")
+                return False
             for x in topgroups:
-                if self.check_membership(None,groups,x, tabs+1):
-                    if self.debug: print '\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"yield a match."
-                    return True
+                if (x not in checked):
+                    if self.check_membership(None,groups,x, tabs+1, checked):
+                        self.log('    '*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"yield a match.")
+                        return True
 
-        if self.debug: print '\t'*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"did not  yield any match."
+        self.log('    '*tabs + "sAMAccountName:", result.values()[0]['sAMAccountName'],"did not yield any match.")
         return False
