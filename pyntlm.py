@@ -297,10 +297,17 @@ def check_authorization(req, username, proxy):
    
     rules = req.get_options().get('Require','')
     groupRules = req.get_options().get('RequireGroup','')
+
     if cacheGroups.has(groupRules, username):
         req.log_error('PYNTLM: CACHED Membership check succeeded for %s in rule "%s" for URI %s.' %
                 (username,str(groupRules),req.unparsed_uri), apache.APLOG_INFO)
         return True
+        
+    if not rules and not groupRules:
+        req.log_error('PYNTLM: no restrictions for %s for URI %s. OK to pass.' %
+                (username,req.unparsed_uri), apache.APLOG_INFO)
+        return True
+    
     groups = []
     if rules:
         users = [ u.strip() for u in rules.split(",")]
